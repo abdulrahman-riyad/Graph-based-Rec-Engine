@@ -66,11 +66,16 @@ neo4j/data/
 neo4j/logs/
 neo4j/import/
 
-# Frontend specific - Only ignore node_modules
+# Frontend - Only ignore node_modules
 frontend/node_modules/
 
-# Node modules in any location
+# Node modules (general)
 node_modules/
+
+# Next.js build outputs (general)
+.next/
+out/
+*.tsbuildinfo
 
 # Testing
 coverage/
@@ -127,12 +132,9 @@ data_statistics.txt
 *.backup
 backups/
 
-# npm/yarn logs (but only in root, not in frontend)
+# npm/yarn logs (general)
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
-!frontend/npm-debug.log*
-!frontend/yarn-debug.log*
-!frontend/yarn-error.log*
