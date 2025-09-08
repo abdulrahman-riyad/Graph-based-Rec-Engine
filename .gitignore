@@ -68,21 +68,9 @@ neo4j/import/
 
 # Frontend specific - Only ignore node_modules
 frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/build/
-frontend/dist/
-frontend/.cache/
-frontend/.parcel-cache/
-frontend/*.tsbuildinfo
 
 # Node modules in any location
 node_modules/
-
-# Next.js build outputs (if in other locations)
-.next/
-out/
-*.tsbuildinfo
 
 # Testing
 coverage/
