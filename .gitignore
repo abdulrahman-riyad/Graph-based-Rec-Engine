@@ -1,0 +1,140 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.cover
+*.log
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+virtualenv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env
+
+# Data folder - IMPORTANT: Don't commit datasets
+data/
+/data
+recommendation-system/data/
+output/
+logs/
+*.csv
+*.xlsx
+*.xls
+*.jsonl
+*.json
+!package.json
+!tsconfig.json
+!package-lock.json
+
+# Neo4j
+neo4j/data/
+neo4j/logs/
+neo4j/import/
+
+# Node.js / Frontend
+node_modules/
+/.next/
+/out/
+.next/
+.cache/
+.parcel-cache/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Testing
+coverage/
+*.lcov
+.nyc_output/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+
+# Documentation builds
+docs/_build/
+site/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Secrets
+*.pem
+*.key
+*.crt
+*.p12
+
+# Cache
+.cache/
+*.cache
+redis-data/
+
+# Statistics and reports
+data_statistics.txt
+*.report
+
+# Backups
+*.backup
+backups/
+
+# Git folder in frontend
+frontend/.git/

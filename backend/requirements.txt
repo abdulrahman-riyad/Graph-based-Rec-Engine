@@ -1,0 +1,56 @@
+# Core packages
+neo4j==5.28.2
+pandas==2.3.2
+numpy==2.3.2
+python-dotenv==1.1.1
+tqdm==4.67.1
+polars==1.33.0
+
+# For reading various file formats
+openpyxl==3.1.5
+jsonlines==4.0.0
+
+# For text processing
+textblob==0.19.0
+
+# For better console output
+colorama==0.4.6
+tabulate==0.9.0
+
+# Machine Learning & Analytics
+scikit-learn==1.7.1
+scipy==1.16.1
+
+# FastAPI Backend
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+python-multipart==0.0.20
+httpx==0.28.1
+
+# API Documentation
+slowapi==0.1.9
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+
+# Monitoring & Logging
+loguru==0.7.3
+prometheus-client==0.22.1
+
+# Testing
+pytest==8.4.2
+pytest-asyncio==1.1.0
+requests==2.32.5
+
+# Development
+black==25.1.0
+isort==6.0.1
+mypy==1.17.1
+
+# Caching
+redis==6.4.0
+aiocache==0.12.3
+
+# Background tasks
+celery==5.5.3
