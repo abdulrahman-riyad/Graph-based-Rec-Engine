@@ -1,8 +1,8 @@
 # backend/app/api/v1/endpoints/health.py
 from fastapi import APIRouter, Depends
 from datetime import datetime
-from app.database import db_manager
-from app.models.schemas import HealthCheck
+from ....models.schemas import HealthCheck
+from ....database import db_manager
 
 router = APIRouter()
 

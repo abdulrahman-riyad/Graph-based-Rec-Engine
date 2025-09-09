@@ -3,22 +3,22 @@
 Pydantic models for request/response schemas
 """
 
-from schemas import (
+from .schemas import (
     # Base models
     Product,
     Customer,
     Recommendation,
-
+    
     # Request models
     RecommendationRequest,
     RevenueAnalyticsRequest,
-
+    
     # Response models
     CustomerSegment,
     ProductPerformance,
     BasketAnalysis,
     HealthCheck,
-
+    
     # Enums
     RecommendationAlgorithm,
     AnalyticsTimeframe
@@ -29,17 +29,17 @@ __all__ = [
     "Product",
     "Customer",
     "Recommendation",
-
+    
     # Request models
     "RecommendationRequest",
     "RevenueAnalyticsRequest",
-
+    
     # Response models
     "CustomerSegment",
     "ProductPerformance",
     "BasketAnalysis",
     "HealthCheck",
-
+    
     # Enums
     "RecommendationAlgorithm",
     "AnalyticsTimeframe"

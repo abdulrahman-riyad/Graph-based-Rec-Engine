@@ -1,9 +1,9 @@
 # backend/app/api/v1/endpoints/customers.py
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from app.models.schemas import Customer, Recommendation
-from app.services.customers import CustomerService
-from app.services.recommendations import RecommendationService
+from ....models.schemas import Customer, Recommendation
+from ....services.customers import CustomerService
+from ....services.recommendations import RecommendationService
 
 router = APIRouter()
 
@@ -72,7 +72,7 @@ async def get_customer_purchase_history(
     Get purchase history for a specific customer
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             # Check if customer exists
@@ -128,7 +128,7 @@ async def get_customer_analytics(customer_id: str):
     Get detailed analytics for a specific customer
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             # Get comprehensive customer analytics

@@ -1,27 +1,64 @@
-// frontend/app/dashboard/components/CustomerSegments.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { fetchCustomerSegments } from '@/lib/api'
 import { Users, TrendingUp, AlertCircle, Star } from 'lucide-react'
+
+// Remove unused Legend import
 
 interface Segment {
   segment_name: string
   customer_count: number
-  avg_lifetime_value: number
   percentage?: number
+  avg_lifetime_value: number
+  avg_purchase_frequency: number
+  total_revenue: float
+  growth_rate?: number
 }
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6B7280']
 
-const segmentIcons: { [key: string]: any } = {
+const segmentIcons: Record<string, React.ComponentType> = {
   'Champions': Star,
   'Loyal Customers': TrendingUp,
   'At Risk': AlertCircle,
   'New Customers': Users
 }
+
+// Fix the CustomTooltip any types
+interface TooltipPayload {
+  name: string
+  value: number
+  payload: {
+    percentage?: number
+  }
+}
+
+const CustomTooltip = ({
+  active,
+  payload
+}: {
+  active?: boolean
+  payload?: TooltipPayload[]
+}) => {
+  if (active && payload && payload[0]) {
+    return (
+      <div className="bg-white p-3 shadow-lg rounded-lg border">
+        <p className="font-semibold">{payload[0].name}</p>
+        <p className="text-sm text-gray-600">
+          Customers: {payload[0].value.toLocaleString()}
+        </p>
+        <p className="text-sm text-gray-600">
+          Percentage: {payload[0].payload.percentage?.toFixed(1)}%
+        </p>
+      </div>
+    )
+  }
+  return null
+}
+
 
 export default function CustomerSegments() {
   const [segments, setSegments] = useState<Segment[]>([])

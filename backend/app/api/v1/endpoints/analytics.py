@@ -3,34 +3,17 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime, timedelta
 
-# Fix import paths
-import sys
-import os
-
-# Get the backend directory (4 levels up from this file)
-current_file = os.path.abspath(__file__)
-endpoints_dir = os.path.dirname(current_file)  # endpoints
-v1_dir = os.path.dirname(endpoints_dir)  # v1
-api_dir = os.path.dirname(v1_dir)  # api
-app_dir = os.path.dirname(api_dir)  # app
-backend_dir = os.path.dirname(app_dir)  # backend
-
-# Add to path if needed
-if backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
-
-from app.models.schemas import (
-    RevenueAnalyticsRequest,
-    CustomerSegment,
-    ProductPerformance,
-    BasketAnalysis
+from ....models.schemas import (
+    CustomerSegmentResponse,
+    BasketAnalysis,
+    RevenueAnalyticsRequest
 )
-from app.services.analytics import AnalyticsService
+from ....services.analytics import AnalyticsService
 
 router = APIRouter()
 
 
-@router.get("/customer-segments", response_model=List[CustomerSegment])
+@router.get("/customer-segments", response_model=List[CustomerSegmentResponse])
 async def get_customer_segments():
     """
     Get customer segmentation using RFM analysis
@@ -102,7 +85,7 @@ async def get_dashboard_summary():
     Get summary statistics for the main dashboard
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             # Get overall statistics
@@ -157,7 +140,7 @@ async def get_conversion_funnel(
     Get conversion funnel analytics
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             result = session.run("""

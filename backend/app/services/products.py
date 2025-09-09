@@ -2,17 +2,8 @@
 from typing import List, Optional, Dict
 import logging
 
-# Fix imports
-try:
-    from app.database import db_manager
-    from app.models.schemas import Product
-except ImportError:
-    import sys
-    import os
-
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from app.database import db_manager
-    from app.models.schemas import Product
+from ..database import db_manager
+from ..models.schemas import Product
 
 logger = logging.getLogger(__name__)
 

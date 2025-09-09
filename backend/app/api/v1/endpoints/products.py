@@ -1,8 +1,8 @@
 # backend/app/api/v1/endpoints/products.py
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from app.models.schemas import Product
-from app.services.products import ProductService
+from ....models.schemas import Product, Recommendation
+from ....services.products import ProductService
 
 router = APIRouter()
 
@@ -61,7 +61,7 @@ async def get_similar_products(
     Get products similar to the specified product
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             # First check if product exists
@@ -134,7 +134,7 @@ async def get_product_reviews(
     Get reviews for a specific product
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             result = session.run("""

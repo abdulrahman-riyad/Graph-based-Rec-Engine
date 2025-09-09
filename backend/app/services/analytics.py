@@ -1,19 +1,10 @@
 # backend/app/services/analytics.py
+import logging
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
-import logging
 
-# Fix imports
-try:
-    from app.database import db_manager
-    from app.models.schemas import CustomerSegment, ProductPerformance, BasketAnalysis
-except ImportError:
-    import sys
-    import os
-
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from app.database import db_manager
-    from app.models.schemas import CustomerSegment, ProductPerformance, BasketAnalysis
+from ..database import db_manager
+from ..models.schemas import CustomerSegment, ProductPerformance, BasketAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -369,7 +360,7 @@ class AnalyticsService:
                 product_data = result['product']
 
                 # Create Product object from data
-                from app.models.schemas import Product
+                from ..models.schemas import Product
                 product = Product(
                     sku=product_data['sku'],
                     title=product_data.get('title'),

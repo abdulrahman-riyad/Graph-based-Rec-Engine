@@ -1,8 +1,8 @@
 # backend/app/api/v1/endpoints/recommendations.py
 from fastapi import APIRouter, HTTPException, Query, Body
 from typing import List, Optional
-from app.models.schemas import RecommendationRequest, Recommendation
-from app.services.recommendations import RecommendationService
+from ....models.schemas import RecommendationRequest, Recommendation
+from ....services.recommendations import RecommendationService
 
 router = APIRouter()
 
@@ -45,7 +45,7 @@ async def get_popular_products(
     Get popular products across all customers
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             query = """
@@ -106,7 +106,7 @@ async def get_trending_products(
     Get trending products based on recent activity
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             result = session.run("""
@@ -158,7 +158,7 @@ async def get_cross_sell_recommendations(
     Get cross-sell recommendations for a specific product
     """
     try:
-        from app.database import db_manager
+        from ....database import db_manager
 
         with db_manager.get_session() as session:
             result = session.run("""

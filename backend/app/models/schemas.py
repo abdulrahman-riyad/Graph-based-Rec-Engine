@@ -1,198 +1,403 @@
 # backend/app/models/schemas.py
-from pydantic import BaseModel, Field, ConfigDict
+"""
+Complete Pydantic models for request/response schemas
+All classes needed by endpoints are included here
+"""
+
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
 
+# ============================================================
 # Enums
+# ============================================================
+
 class RecommendationAlgorithm(str, Enum):
-    """Available recommendation algorithms"""
-    hybrid = "hybrid"
-    collaborative = "collaborative"
-    content = "content"
-    graph = "graph"
-    trending = "trending"
-    diversity = "diversity"
+    HYBRID = "hybrid"
+    COLLABORATIVE = "collaborative"
+    CONTENT = "content"
+    GRAPH = "graph"
+    TRENDING = "trending"
+    POPULAR = "popular"
+    DIVERSITY = "diversity"
 
 
 class AnalyticsTimeframe(str, Enum):
-    """Analytics timeframe options"""
-    daily = "daily"
-    weekly = "weekly"
-    monthly = "monthly"
-    quarterly = "quarterly"
-    yearly = "yearly"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    YEARLY = "yearly"
 
 
+class CustomerSegmentEnum(str, Enum):
+    CHAMPIONS = "Champions"
+    LOYAL_CUSTOMERS = "Loyal Customers"
+    POTENTIAL_LOYALISTS = "Potential Loyalists"
+    NEW_CUSTOMERS = "New Customers"
+    PROMISING = "Promising"
+    NEED_ATTENTION = "Need Attention"
+    ABOUT_TO_SLEEP = "About to Sleep"
+    AT_RISK = "At Risk"
+    CANT_LOSE_THEM = "Can't Lose Them"
+    HIBERNATING = "Hibernating"
+    LOST = "Lost"
+
+
+# ============================================================
 # Base Models
+# ============================================================
+
 class Product(BaseModel):
     """Product model"""
-    model_config = ConfigDict(from_attributes=True)
-
     sku: str
-    title: Optional[str] = None
-    price: Optional[float] = Field(None, ge=0)
+    title: str
     category: Optional[str] = None
     brand: Optional[str] = None
+    price: Optional[float] = Field(None, ge=0)
     description: Optional[str] = None
+    features: Optional[List[str]] = []
     rating: Optional[float] = Field(None, ge=0, le=5)
     review_count: Optional[int] = Field(None, ge=0)
-    popularity_score: Optional[float] = None
-    overall_score: Optional[float] = None
+    stock_quantity: Optional[int] = Field(None, ge=0)
+    image_url: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    # Analytics fields
+    view_count: Optional[int] = 0
+    purchase_count: Optional[int] = 0
+    revenue: Optional[float] = 0
+    popularity_score: Optional[float] = 0
+    trend: Optional[str] = "stable"  # up, down, stable
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "sku": "PROD-001",
+                "title": "Premium Wireless Headphones",
+                "category": "Electronics",
+                "brand": "AudioTech",
+                "price": 199.99,
+                "rating": 4.5,
+                "review_count": 324
+            }
+        }
 
 
 class Customer(BaseModel):
     """Customer model"""
-    model_config = ConfigDict(from_attributes=True)
-
     customer_id: str
     email: Optional[str] = None
     name: Optional[str] = None
-    country: Optional[str] = None
     segment: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    # Behavioral metrics
     lifetime_value: Optional[float] = Field(None, ge=0)
     purchase_count: Optional[int] = Field(None, ge=0)
     avg_order_value: Optional[float] = Field(None, ge=0)
-    last_purchase_date: Optional[datetime] = None
-    churn_risk: Optional[str] = None
-    created_at: Optional[datetime] = None
+    days_since_last_purchase: Optional[int] = None
+    favorite_categories: Optional[List[str]] = []
+
+    # RFM scores
+    recency_score: Optional[int] = Field(None, ge=1, le=5)
+    frequency_score: Optional[int] = Field(None, ge=1, le=5)
+    monetary_score: Optional[int] = Field(None, ge=1, le=5)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "customer_id": "CUST-12345",
+                "email": "customer@example.com",
+                "segment": "Loyal Customers",
+                "lifetime_value": 2543.67,
+                "purchase_count": 12
+            }
+        }
 
 
-class Recommendation(Product):
-    """Recommendation model extending Product"""
+class Recommendation(BaseModel):
+    """Recommendation model"""
+    sku: str
+    title: str
+    category: Optional[str] = None
+    price: Optional[float] = None
     score: float = Field(..., ge=0, le=1)
     confidence: float = Field(..., ge=0, le=1)
+    algorithm: Optional[str] = None
     explanation: Optional[List[str]] = None
-    algorithm_used: Optional[str] = None
+
+    # Additional product info
+    rating: Optional[float] = None
+    image_url: Optional[str] = None
+    discount_percentage: Optional[float] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "sku": "PROD-002",
+                "title": "Bluetooth Speaker",
+                "category": "Electronics",
+                "price": 79.99,
+                "score": 0.92,
+                "confidence": 0.85,
+                "algorithm": "hybrid",
+                "explanation": ["Frequently bought together", "Similar to your purchases"]
+            }
+        }
 
 
+# ============================================================
 # Request Models
+# ============================================================
+
 class RecommendationRequest(BaseModel):
     """Request model for recommendations"""
     customer_id: str
-    algorithm: RecommendationAlgorithm = RecommendationAlgorithm.hybrid
-    limit: int = Field(default=10, ge=1, le=100)
+    algorithm: RecommendationAlgorithm = RecommendationAlgorithm.HYBRID
+    limit: int = Field(10, ge=1, le=100)
     include_explanation: bool = False
-    filters: Optional[Dict[str, Any]] = None
-    exclude_purchased: bool = True
     category_filter: Optional[str] = None
     price_range: Optional[Dict[str, float]] = None
+    exclude_purchased: bool = True
+
+    @validator('price_range')
+    def validate_price_range(cls, v):
+        if v and ('min' not in v or 'max' not in v):
+            raise ValueError('price_range must contain min and max')
+        if v and v['min'] > v['max']:
+            raise ValueError('min price must be less than max price')
+        return v
 
 
 class RevenueAnalyticsRequest(BaseModel):
     """Request model for revenue analytics"""
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
-    timeframe: AnalyticsTimeframe = AnalyticsTimeframe.daily
+    timeframe: AnalyticsTimeframe = AnalyticsTimeframe.DAILY
     include_forecast: bool = False
-    compare_period: bool = False
-    group_by: Optional[str] = None
+    segment_by: Optional[str] = None  # category, brand, customer_segment
 
 
-# Response Models
-class CustomerSegment(BaseModel):
-    """Customer segment model"""
+# ============================================================
+# Response Models (THESE WERE MISSING!)
+# ============================================================
+
+class CustomerSegmentResponse(BaseModel):
+    """Customer segment analytics response"""
     segment_name: str
     customer_count: int
+    percentage: float
     avg_lifetime_value: float
     avg_purchase_frequency: float
-    characteristics: Dict[str, Any]
-    percentage: Optional[float] = None
+    total_revenue: float
+    growth_rate: Optional[float] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "segment_name": "Champions",
+                "customer_count": 245,
+                "percentage": 12.5,
+                "avg_lifetime_value": 3456.78,
+                "avg_purchase_frequency": 8.2,
+                "total_revenue": 847411.10
+            }
+        }
 
 
 class ProductPerformance(BaseModel):
-    """Product performance metrics model"""
-    product: Product
+    """Product performance analytics"""
+    sku: str
+    title: str
+    category: str
     revenue: float
     units_sold: int
-    unique_customers: int
-    conversion_rate: Optional[float] = None
-    trend: str  # "increasing", "decreasing", "stable"
-    trend_percentage: Optional[float] = None
-    cross_sell_opportunities: List[Product]
-    competitive_position: Dict[str, Any]
+    conversion_rate: float
+    avg_rating: float
+    return_rate: Optional[float] = None
+    profit_margin: Optional[float] = None
+    trend: str  # up, down, stable
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "sku": "PROD-001",
+                "title": "Premium Headphones",
+                "category": "Electronics",
+                "revenue": 45678.90,
+                "units_sold": 234,
+                "conversion_rate": 0.045,
+                "avg_rating": 4.5,
+                "trend": "up"
+            }
+        }
 
 
 class BasketAnalysis(BaseModel):
-    """Market basket analysis model"""
-    item1: str
-    item2: str
-    support: float = Field(..., ge=0, le=1)
-    confidence: float = Field(..., ge=0, le=1)
-    lift: float = Field(..., ge=0)
-    transaction_count: Optional[int] = None
+    """Market basket analysis results"""
+    product_a: str
+    product_b: str
+    support: float
+    confidence: float
+    lift: float
+    frequency: int
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "product_a": "Laptop",
+                "product_b": "Mouse",
+                "support": 0.15,
+                "confidence": 0.72,
+                "lift": 2.4,
+                "frequency": 156
+            }
+        }
 
 
-class HealthCheck(BaseModel):
-    """Health check response model"""
-    status: str  # "healthy", "unhealthy", "degraded"
-    database: str
-    timestamp: datetime
-    node_count: Optional[int] = None
-    relationship_count: Optional[int] = None
-    version: str = "1.0.0"
-    uptime: Optional[float] = None
+class RevenueAnalytics(BaseModel):
+    """Revenue analytics response"""
+    total_revenue: float
+    order_count: int
+    avg_order_value: float
+    growth_rate: float
+    daily_revenue: Optional[List[Dict[str, Any]]] = None
+    revenue_by_category: Optional[Dict[str, float]] = None
+    revenue_by_segment: Optional[Dict[str, float]] = None
+    forecast: Optional[List[Dict[str, Any]]] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "total_revenue": 1234567.89,
+                "order_count": 4567,
+                "avg_order_value": 270.34,
+                "growth_rate": 15.7,
+                "daily_revenue": [
+                    {"date": "2024-01-01", "revenue": 45678.90, "order_count": 123}
+                ]
+            }
+        }
 
 
-# Analytics Models
 class DashboardSummary(BaseModel):
     """Dashboard summary statistics"""
     total_customers: int
     total_products: int
     total_purchases: int
-    active_customers_30d: int
+    total_revenue: float
+
+    # Time-based metrics
     revenue_30d: float
-    recent_orders_7d: int
-    conversion_rate: Optional[float] = None
-    avg_order_value: Optional[float] = None
+    revenue_growth_30d: float
+    active_customers_30d: int
+    new_customers_30d: int
+
+    # Top performers
+    top_products: Optional[List[Dict[str, Any]]] = None
+    top_categories: Optional[List[Dict[str, Any]]] = None
+
+    # System status
+    database_status: str = "operational"
+    last_update: Optional[datetime] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "total_customers": 10000,
+                "total_products": 5000,
+                "total_purchases": 100000,
+                "total_revenue": 2500000.00,
+                "revenue_30d": 250000.00,
+                "revenue_growth_30d": 15.5,
+                "active_customers_30d": 3000,
+                "new_customers_30d": 500,
+                "database_status": "operational",
+                "last_update": "2024-01-01T12:00:00"
+            }
+        }
+
+
+class HealthCheck(BaseModel):
+    """Health check response"""
+    status: str
+    database: str
     timestamp: datetime
+    version: str
+    node_count: Optional[int] = None
+    relationship_count: Optional[int] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "status": "healthy",
+                "database": "connected",
+                "timestamp": "2024-01-01T12:00:00",
+                "version": "1.0.0",
+                "node_count": 1000000,
+                "relationship_count": 5000000
+            }
+        }
 
 
-class RevenueAnalytics(BaseModel):
-    """Revenue analytics response"""
-    period: Dict[str, datetime]
-    summary: Dict[str, float]
-    daily_breakdown: Dict[str, List]
-    category_breakdown: Optional[List[Dict]] = None
-    trend: str
-    forecast: Optional[Dict[str, Any]] = None
+# ============================================================
+# Utility Models
+# ============================================================
 
-
-class CustomerAnalytics(BaseModel):
-    """Customer analytics response"""
-    customer_id: str
-    lifetime_value: float
-    total_purchases: int
-    unique_products: int
-    avg_order_value: float
-    days_since_last_purchase: Optional[int] = None
-    predicted_churn_probability: Optional[float] = None
-    recommended_actions: Optional[List[str]] = None
-
-
-# Pagination Models
 class PaginationParams(BaseModel):
     """Pagination parameters"""
-    limit: int = Field(default=50, ge=1, le=100)
-    offset: int = Field(default=0, ge=0)
+    limit: int = Field(50, ge=1, le=100)
+    offset: int = Field(0, ge=0)
     sort_by: Optional[str] = None
-    sort_order: str = Field(default="desc", pattern="^(asc|desc)$")
+    sort_order: str = Field("desc", regex="^(asc|desc)$")
 
 
-class PaginatedResponse(BaseModel):
-    """Paginated response wrapper"""
-    items: List[Any]
-    total: int
-    limit: int
-    offset: int
-    has_more: bool
-
-
-# Error Models
 class ErrorResponse(BaseModel):
     """Error response model"""
     error: str
     message: str
     details: Optional[Dict[str, Any]] = None
     timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class SuccessResponse(BaseModel):
+    """Success response model"""
+    success: bool = True
+    message: str
+    data: Optional[Dict[str, Any]] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+# ============================================================
+# Additional Response Models for Endpoints
+# ============================================================
+
+class CustomerAnalytics(BaseModel):
+    """Customer analytics response"""
+    customer_id: str
+    total_spent: float
+    order_count: int
+    avg_order_value: float
+    favorite_category: Optional[str] = None
+    last_purchase_date: Optional[datetime] = None
+    churn_probability: Optional[float] = None
+
+
+class ProductRecommendationResponse(BaseModel):
+    """Response for product recommendations endpoint"""
+    customer_id: str
+    algorithm_used: str
+    recommendations: List[Recommendation]
+    generated_at: datetime = Field(default_factory=datetime.now)
+
+
+class SegmentationAnalysis(BaseModel):
+    """Detailed segmentation analysis"""
+    segments: List[CustomerSegmentResponse]
+    total_customers: int
+    analysis_date: datetime = Field(default_factory=datetime.now)
+    insights: Optional[List[str]] = None

@@ -12,8 +12,7 @@ import {
   RefreshCw,
   Settings,
   Info,
-  Star,
-  TrendingUp
+  Star
 } from 'lucide-react'
 
 interface Customer {
@@ -42,9 +41,20 @@ export default function RecommendationEngine() {
   const [algorithm, setAlgorithm] = useState('hybrid')
   const [showExplanations, setShowExplanations] = useState(true)
 
-  useEffect(() => {
-    loadCustomers()
-  }, [])
+  // Use useCallback to fix dependency warning
+  const generateRecommendations = useCallback(async () => {
+    if (!selectedCustomer) return
+
+    setLoading(true)
+    try {
+      const data = await fetchRecommendations(selectedCustomer, algorithm, 6, showExplanations)
+      setRecommendations(data)
+    } catch (error) {
+      console.error('Failed to generate recommendations:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedCustomer, algorithm, showExplanations])
 
   useEffect(() => {
     if (selectedCustomer) {

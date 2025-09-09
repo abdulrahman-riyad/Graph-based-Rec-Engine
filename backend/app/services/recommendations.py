@@ -2,18 +2,8 @@
 from typing import List, Dict, Optional
 import logging
 
-# Fix imports - use relative or absolute based on your setup
-try:
-    from app.database import db_manager
-    from app.models.schemas import Recommendation
-except ImportError:
-    # If running from backend directory
-    import sys
-    import os
-
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from app.database import db_manager
-    from app.models.schemas import Recommendation
+from ..database import db_manager
+from ..models.schemas import Recommendation
 
 logger = logging.getLogger(__name__)
 

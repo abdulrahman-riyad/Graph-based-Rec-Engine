@@ -3,17 +3,8 @@ from typing import List, Optional, Dict
 from datetime import datetime
 import logging
 
-# Fix imports
-try:
-    from app.database import db_manager
-    from app.models.schemas import Customer
-except ImportError:
-    import sys
-    import os
-
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from app.database import db_manager
-    from app.models.schemas import Customer
+from ..database import db_manager
+from ..models.schemas import Customer
 
 logger = logging.getLogger(__name__)
 
