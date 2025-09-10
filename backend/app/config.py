@@ -16,11 +16,15 @@ class Settings(BaseSettings):
     project_name: str = "E-Commerce Intelligence Platform"
     version: str = "1.0.0"
     api_v1_prefix: str = "/api/v1"
+    
+    # Server settings (add these to prevent validation errors)
+    host: Optional[str] = "0.0.0.0"
+    port: Optional[int] = 8000
 
     # Neo4j Database
     neo4j_uri: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     neo4j_user: str = os.getenv("NEO4J_USER", "neo4j")
-    neo4j_password: str = os.getenv("NEO4J_PASSWORD", "password")
+    neo4j_password: str = os.getenv("NEO4J_PASSWORD", "password123")
 
     # CORS
     backend_cors_origins: List[str] = [
@@ -38,6 +42,8 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
     access_token_expire_minutes: int = 30
+    refresh_token_expire_days: Optional[int] = 7
+    algorithm: Optional[str] = "HS256"
 
     # Rate Limiting
     rate_limit_requests: int = 100
@@ -45,14 +51,19 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    log_file: Optional[str] = "logs/backend.log"
 
     # Environment
     environment: str = os.getenv("ENVIRONMENT", "development")
     debug: bool = environment == "development"
+    
+    # Python path (for compatibility)
+    pythonpath: Optional[str] = "./"
 
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "allow"  # Allow extra fields to prevent validation errors
 
 
 # Create settings instance

@@ -1,6 +1,6 @@
 """
 enhanced_data_loader.py
-Load all 7 datasets with proper relationships and enriched features
+Complete implementation for loading all e-commerce datasets
 """
 
 import os
@@ -13,7 +13,6 @@ from neo4j import GraphDatabase
 from dotenv import load_dotenv
 from tqdm import tqdm
 from datetime import datetime
-from textblob import TextBlob
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -21,12 +20,12 @@ load_dotenv()
 
 class EnhancedDataLoader:
     def __init__(self):
-        self.uri = os.getenv("NEO4J_URI")
-        self.user = os.getenv("NEO4J_USER")
-        self.password = os.getenv("NEO4J_PASSWORD")
+        self.uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        self.user = os.getenv("NEO4J_USER", "neo4j")
+        self.password = os.getenv("NEO4J_PASSWORD", "password123")
         self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
         self.data_root = Path("data")
-        self.batch_size = 1000
+        self.batch_size = 500
         print("✅ Connected to Neo4j")
 
     def create_enhanced_schema(self):
@@ -38,30 +37,21 @@ class EnhancedDataLoader:
             "CREATE CONSTRAINT IF NOT EXISTS FOR (c:Customer) REQUIRE c.customer_id IS UNIQUE",
             "CREATE INDEX IF NOT EXISTS FOR (c:Customer) ON (c.country)",
             "CREATE INDEX IF NOT EXISTS FOR (c:Customer) ON (c.segment)",
-            "CREATE INDEX IF NOT EXISTS FOR (c:Customer) ON (c.lifetime_value)",
-
+            
             # Product constraints
             "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Product) REQUIRE p.sku IS UNIQUE",
             "CREATE INDEX IF NOT EXISTS FOR (p:Product) ON (p.category)",
             "CREATE INDEX IF NOT EXISTS FOR (p:Product) ON (p.brand)",
             "CREATE INDEX IF NOT EXISTS FOR (p:Product) ON (p.price)",
-            "CREATE INDEX IF NOT EXISTS FOR (p:Product) ON (p.rating)",
-
+            
             # Category constraints
             "CREATE CONSTRAINT IF NOT EXISTS FOR (cat:Category) REQUIRE cat.name IS UNIQUE",
-            "CREATE INDEX IF NOT EXISTS FOR (cat:Category) ON (cat.level)",
-
+            
             # Brand constraints
             "CREATE CONSTRAINT IF NOT EXISTS FOR (b:Brand) REQUIRE b.name IS UNIQUE",
-
-            # Review constraints
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (r:Review) REQUIRE r.review_id IS UNIQUE",
-            "CREATE INDEX IF NOT EXISTS FOR (r:Review) ON (r.rating)",
-            "CREATE INDEX IF NOT EXISTS FOR (r:Review) ON (r.sentiment)",
-
+            
             # Session constraints
             "CREATE CONSTRAINT IF NOT EXISTS FOR (s:Session) REQUIRE s.session_id IS UNIQUE",
-            "CREATE INDEX IF NOT EXISTS FOR (s:Session) ON (s.date)",
         ]
 
         with self.driver.session() as session:
@@ -69,261 +59,388 @@ class EnhancedDataLoader:
                 try:
                     session.run(query)
                 except Exception as e:
-                    pass
+                    pass  # Constraint might already exist
         print("✅ Schema created")
 
+    def load_uci_retail_fixed(self):
+        """Load UCI Online Retail Dataset with proper handling"""
+        print("\n📦 Loading UCI Online Retail Dataset...")
+        
+        path = self.data_root / "4. UCI Online Retail Dataset"
+        excel_file = path / "Online Retail.xlsx"
+        
+        if not excel_file.exists():
+            print("  ⚠ UCI Retail file not found, skipping...")
+            return
+            
+        try:
+            # Read the Excel file
+            df = pd.read_excel(excel_file)
+            print(f"  Loaded {len(df)} transactions")
+            
+            # Clean the data
+            df = df.dropna(subset=['CustomerID', 'StockCode'])
+            df['CustomerID'] = df['CustomerID'].astype(str).str.replace('.0', '', regex=False)
+            df['UnitPrice'] = pd.to_numeric(df['UnitPrice'], errors='coerce').fillna(0)
+            df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1)
+            
+            # Create customers
+            customers = df.groupby('CustomerID').agg({
+                'Country': 'first',
+                'InvoiceNo': 'count',
+                'UnitPrice': lambda x: (x * df.loc[x.index, 'Quantity']).sum()
+            }).reset_index()
+            customers.columns = ['customer_id', 'country', 'purchase_count', 'total_spent']
+            
+            print(f"  Loading {len(customers)} customers...")
+            
+            # Load customers in batches
+            with self.driver.session() as session:
+                for i in tqdm(range(0, len(customers), self.batch_size)):
+                    batch = customers.iloc[i:i+self.batch_size]
+                    query = """
+                    UNWIND $batch as row
+                    MERGE (c:Customer {customer_id: 'UCI_' + row.customer_id})
+                    SET c.country = row.country,
+                        c.purchase_count = toInteger(row.purchase_count),
+                        c.total_spent = toFloat(row.total_spent),
+                        c.source = 'UCI_Retail'
+                    """
+                    session.run(query, batch=batch.to_dict('records'))
+            
+            # Create products
+            products = df.groupby('StockCode').agg({
+                'Description': 'first',
+                'UnitPrice': 'mean',
+                'Quantity': 'sum'
+            }).reset_index()
+            products.columns = ['sku', 'description', 'avg_price', 'total_quantity_sold']
+            products = products.dropna(subset=['description'])
+            
+            print(f"  Loading {len(products)} products...")
+            
+            # Load products in batches
+            with self.driver.session() as session:
+                for i in tqdm(range(0, len(products), self.batch_size)):
+                    batch = products.iloc[i:i+self.batch_size]
+                    query = """
+                    UNWIND $batch as row
+                    MERGE (p:Product {sku: 'UCI_' + row.sku})
+                    SET p.title = row.description,
+                        p.price = toFloat(row.avg_price),
+                        p.total_quantity_sold = toInteger(row.total_quantity_sold),
+                        p.source = 'UCI_Retail'
+                    """
+                    session.run(query, batch=batch.to_dict('records'))
+            
+            # Create purchase relationships
+            print(f"  Creating purchase relationships...")
+            purchases = df[['CustomerID', 'StockCode', 'Quantity', 'UnitPrice', 'InvoiceDate']].copy()
+            purchases['total_amount'] = purchases['Quantity'] * purchases['UnitPrice']
+            
+            # Load purchases in batches
+            with self.driver.session() as session:
+                for i in tqdm(range(0, min(len(purchases), 50000), self.batch_size)):  # Limit to 50k for demo
+                    batch = purchases.iloc[i:i+self.batch_size]
+                    query = """
+                    UNWIND $batch as row
+                    MATCH (c:Customer {customer_id: 'UCI_' + row.CustomerID})
+                    MATCH (p:Product {sku: 'UCI_' + row.StockCode})
+                    CREATE (c)-[r:PURCHASED {
+                        quantity: toInteger(row.Quantity),
+                        unit_price: toFloat(row.UnitPrice),
+                        total_amount: toFloat(row.total_amount),
+                        date: datetime(row.InvoiceDate)
+                    }]->(p)
+                    """
+                    batch_dict = batch.to_dict('records')
+                    for record in batch_dict:
+                        record['InvoiceDate'] = str(record['InvoiceDate'])
+                    session.run(query, batch=batch_dict)
+            
+            print(f"  ✅ UCI Retail data loaded successfully")
+            
+        except Exception as e:
+            print(f"  ❌ Error loading UCI Retail: {str(e)}")
+
     def load_amazon_products_enhanced(self):
-        """Load Amazon product metadata and reviews with NLP features"""
+        """Load Amazon product metadata with proper error handling"""
         print("\n📦 Loading Amazon Product Data (Enhanced)...")
-
+        
         path = self.data_root / "1. Amazon Product Data (UCSD)"
-
+        
         # Load metadata files
         meta_files = ['meta_Amazon_Fashion.jsonl', 'meta_Health_and_Personal_Care.jsonl']
-
+        
         for meta_file in meta_files:
             file_path = path / meta_file
             if not file_path.exists():
+                print(f"  ⚠ {meta_file} not found, skipping...")
                 continue
-
-            category_type = meta_file.replace('meta_', '').replace('.jsonl', '')
+                
+            category_type = meta_file.replace('meta_', '').replace('.jsonl', '').replace('_', ' ')
             print(f"  Loading {category_type} metadata...")
-
-            with jsonlines.open(file_path) as reader:
-                batch = []
-                for item in tqdm(reader):
-                    # Create product with enriched features
-                    product = {
-                        'sku': f'AMZN_{item.get("asin", "")}',
-                        'title': item.get('title', ''),
-                        'price': float(item.get('price', '0').replace('$', '').replace(',', '')) if item.get('price') else 0,
-                        'brand': item.get('brand', 'Unknown'),
-                        'category': category_type,
-                        'features': ' '.join(item.get('feature', [])) if item.get('feature') else '',
-                        'also_buy': item.get('also_buy', []),
-                        'also_view': item.get('also_view', []),
-                        'rank': item.get('rank', ''),
-                        'main_cat': item.get('main_cat', category_type)
-                    }
-                    batch.append(product)
-
-                    if len(batch) >= self.batch_size:
+            
+            products_loaded = 0
+            batch = []
+            
+            try:
+                with jsonlines.open(file_path) as reader:
+                    for item in tqdm(reader, desc="Products"):
+                        if products_loaded >= 5000:  # Limit for demo
+                            break
+                            
+                        # Extract price safely
+                        price = 0.0
+                        if 'price' in item and item['price']:
+                            price_str = str(item['price'])
+                            # Remove currency symbols and convert
+                            price_str = price_str.replace('$', '').replace(',', '').strip()
+                            try:
+                                price = float(price_str)
+                            except:
+                                price = 0.0
+                        
+                        # Create product
+                        product = {
+                            'sku': f'AMZN_{item.get("asin", "")}',
+                            'title': item.get('title', 'Unknown Product')[:200],
+                            'price': price,
+                            'brand': item.get('brand', 'Unknown'),
+                            'category': category_type,
+                            'main_cat': item.get('main_cat', category_type)
+                        }
+                        
+                        batch.append(product)
+                        products_loaded += 1
+                        
+                        if len(batch) >= self.batch_size:
+                            self._load_product_batch(batch)
+                            batch = []
+                    
+                    if batch:
                         self._load_product_batch(batch)
-                        batch = []
-
-                if batch:
-                    self._load_product_batch(batch)
-
-        # Load review files with sentiment analysis
-        review_files = ['Amazon_Fashion.jsonl', 'Health_and_Personal_Care.jsonl']
-
-        for review_file in review_files:
-            file_path = path / review_file
-            if not file_path.exists():
-                continue
-
-            print(f"  Loading reviews from {review_file}...")
-
-            with jsonlines.open(file_path) as reader:
-                batch = []
-                for i, review in enumerate(tqdm(reader)):
-                    if i >= 10000:  # Limit for demo
-                        break
-
-                    # Perform sentiment analysis
-                    review_text = review.get('reviewText', '')
-                    sentiment = self._analyze_sentiment(review_text) if review_text else 0
-
-                    review_data = {
-                        'review_id': f'REV_{review.get("asin")}_{review.get("reviewerID")}',
-                        'customer_id': f'AMZN_{review.get("reviewerID")}',
-                        'product_sku': f'AMZN_{review.get("asin")}',
-                        'rating': float(review.get('overall', 0)),
-                        'review_text': review_text[:500],  # Truncate for storage
-                        'sentiment': sentiment,
-                        'helpful': review.get('helpful', [0, 0]),
-                        'verified': review.get('verified', False),
-                        'review_time': review.get('reviewTime', ''),
-                        'unix_time': review.get('unixReviewTime', 0)
-                    }
-                    batch.append(review_data)
-
-                    if len(batch) >= self.batch_size:
-                        self._load_review_batch(batch)
-                        batch = []
-
-                if batch:
-                    self._load_review_batch(batch)
+                        
+                print(f"  ✅ Loaded {products_loaded} {category_type} products")
+                
+            except Exception as e:
+                print(f"  ❌ Error loading {meta_file}: {str(e)}")
 
     def load_customer_behavior_enriched(self):
-        """Load customer behavior with segmentation"""
+        """Load customer behavior dataset"""
         print("\n📊 Loading Customer Behavior Dataset (Enriched)...")
-
+        
         path = self.data_root / "3. E-Commerce Customer Behavior Dataset"
         csv_file = path / "E-commerce Customer Behavior - Sheet1.csv"
-
+        
         if not csv_file.exists():
-            print("  File not found")
+            print("  ⚠ Customer behavior file not found, skipping...")
             return
-
-        df = pd.read_csv(csv_file)
-
-        # Customer segmentation based on behavior
-        if 'Customer_ID' in df.columns:
-            # Calculate customer metrics
-            customer_metrics = df.groupby('Customer_ID').agg({
-                'Purchase_Amount': ['sum', 'mean', 'count'] if 'Purchase_Amount' in df.columns else {},
-                'Page_Views': 'sum' if 'Page_Views' in df.columns else {},
-                'Time_on_Site': 'mean' if 'Time_on_Site' in df.columns else {}
-            }).reset_index()
-
-            # Flatten column names
-            customer_metrics.columns = ['_'.join(col).strip() for col in customer_metrics.columns.values]
-
-            # Create customer segments
-            if 'Purchase_Amount_sum' in customer_metrics.columns:
-                customer_metrics['segment'] = pd.qcut(
-                    customer_metrics['Purchase_Amount_sum'],
-                    q=4,
-                    labels=['Bronze', 'Silver', 'Gold', 'Platinum']
-                )
-
-            # Load to Neo4j
-            print(f"  Loading {len(customer_metrics)} customer profiles...")
-
+            
+        try:
+            df = pd.read_csv(csv_file)
+            
+            # Print columns to debug
+            print(f"  Found columns: {', '.join(df.columns[:10])}")
+            
+            # Try different possible column names for customer ID
+            customer_id_col = None
+            for possible_name in ['Customer_ID', 'Customer ID', 'CustomerID', 'customer_id', 'User_ID', 'User ID']:
+                if possible_name in df.columns:
+                    customer_id_col = possible_name
+                    break
+                    
+            if not customer_id_col:
+                print(f"  ⚠ No customer ID column found. Available columns: {list(df.columns)}")
+                return
+                
+            # Create customers with behavior metrics
+            print(f"  Loading {len(df)} customer behavior records...")
+            
+            # Load in batches
             with self.driver.session() as session:
-                for batch_start in tqdm(range(0, len(customer_metrics), self.batch_size)):
-                    batch = customer_metrics.iloc[batch_start:batch_start + self.batch_size]
-
+                for i in tqdm(range(0, len(df), self.batch_size)):
+                    batch = df.iloc[i:i+self.batch_size]
+                    
+                    # Prepare batch data
+                    batch_data = []
+                    for _, row in batch.iterrows():
+                        customer_data = {
+                            'customer_id': f'BEHAV_{row[customer_id_col]}',
+                            'source': 'Behavior_Dataset'
+                        }
+                        
+                        # Add other fields if they exist
+                        if 'Age' in df.columns and pd.notna(row.get('Age')):
+                            customer_data['age'] = int(row['Age'])
+                        if 'Gender' in df.columns:
+                            customer_data['gender'] = str(row.get('Gender', 'Unknown'))
+                        if 'Purchase_Amount' in df.columns and pd.notna(row.get('Purchase_Amount')):
+                            customer_data['last_purchase_amount'] = float(row['Purchase_Amount'])
+                        
+                        batch_data.append(customer_data)
+                    
                     query = """
                     UNWIND $batch as row
-                    MERGE (c:Customer {customer_id: 'BEHAV_' + toString(row.Customer_ID_)})
-                    SET c.lifetime_value = coalesce(row.Purchase_Amount_sum, 0),
-                        c.avg_purchase = coalesce(row.Purchase_Amount_mean, 0),
-                        c.purchase_count = coalesce(row.Purchase_Amount_count, 0),
-                        c.segment = coalesce(row.segment, 'Unknown'),
-                        c.total_page_views = coalesce(row.Page_Views_sum, 0),
-                        c.avg_time_on_site = coalesce(row.Time_on_Site_mean, 0)
+                    MERGE (c:Customer {customer_id: row.customer_id})
+                    SET c += row
                     """
-
-                    session.run(query, batch=batch.fillna(0).to_dict('records'))
+                    
+                    session.run(query, batch=batch_data)
+                    
+            print(f"  ✅ Customer behavior data loaded successfully")
+            
+        except Exception as e:
+            print(f"  ❌ Error loading customer behavior: {str(e)}")
 
     def load_sessions_and_clickstream(self):
-        """Load session data with clickstream events"""
+        """Load session and clickstream data"""
         print("\n🖱️ Loading Session & Clickstream Data...")
-
+        
         path = self.data_root / "2. E-Commerce Behavior Data (Multi-Category Store)"
         csv_file = path / "2019-Oct.csv"
-
+        
         if not csv_file.exists():
-            print("  File not found")
+            print("  ⚠ Clickstream file not found, skipping...")
             return
-
-        # Read sample for clickstream
-        df = pd.read_csv(csv_file, nrows=100000)
-
-        # Create sessions
-        sessions = df.groupby('user_session').agg({
-            'user_id': 'first',
-            'event_time': ['min', 'max'],
-            'event_type': 'count'
-        }).reset_index()
-
-        print(f"  Loading {len(sessions)} sessions...")
-
-        with self.driver.session() as session:
-            # Create session nodes
-            for batch_start in tqdm(range(0, len(sessions), self.batch_size)):
-                batch = sessions.iloc[batch_start:batch_start + self.batch_size]
-
-                query = """
-                UNWIND $batch as row
-                CREATE (s:Session {
-                    session_id: row.user_session,
-                    customer_id: 'CLICK_' + toString(row.user_id),
-                    start_time: row.event_time_min,
-                    end_time: row.event_time_max,
-                    event_count: row.event_type
-                })
-                """
-
-                # Flatten multi-level columns
-                batch_dict = []
-                for _, row in batch.iterrows():
-                    batch_dict.append({
-                        'user_session': row['user_session'],
-                        'user_id': row[('user_id', 'first')],
-                        'event_time_min': str(row[('event_time', 'min')]),
-                        'event_time_max': str(row[('event_time', 'max')]),
-                        'event_type': int(row[('event_type', 'count')])
-                    })
-
-                session.run(query, batch=batch_dict)
-
-            # Create clickstream relationships
-            print("  Creating clickstream paths...")
-
-            # Group events by session
-            for session_id in tqdm(df['user_session'].unique()[:100]):  # Limit for demo
-                session_events = df[df['user_session'] == session_id].sort_values('event_time')
-
-                if len(session_events) > 1:
+            
+        try:
+            # Read sample of data
+            df = pd.read_csv(csv_file, nrows=100000)  # Limit for demo
+            
+            # Create sessions
+            sessions = df.groupby('user_session').agg({
+                'user_id': 'first',
+                'event_time': ['min', 'max'],
+                'event_type': 'count'
+            }).reset_index()
+            
+            # Flatten columns
+            sessions.columns = ['session_id', 'user_id', 'start_time', 'end_time', 'event_count']
+            
+            print(f"  Loading {len(sessions)} sessions...")
+            
+            # Load sessions
+            with self.driver.session() as session:
+                for i in tqdm(range(0, len(sessions), self.batch_size)):
+                    batch = sessions.iloc[i:i+self.batch_size]
+                    
                     query = """
-                    MATCH (s:Session {session_id: $session_id})
-                    UNWIND $events as event
-                    MATCH (p:Product {sku: 'CLICK_' + toString(event.product_id)})
-                    CREATE (s)-[r:EVENT {
-                        type: event.event_type,
-                        timestamp: event.event_time,
-                        order: event.order
-                    }]->(p)
+                    UNWIND $batch as row
+                    CREATE (s:Session {
+                        session_id: row.session_id,
+                        customer_id: 'CLICK_' + toString(row.user_id),
+                        start_time: datetime(row.start_time),
+                        end_time: datetime(row.end_time),
+                        event_count: toInteger(row.event_count)
+                    })
                     """
-
-                    events = []
-                    for i, (_, row) in enumerate(session_events.iterrows()):
-                        events.append({
-                            'product_id': row['product_id'],
-                            'event_type': row['event_type'],
-                            'event_time': str(row['event_time']),
-                            'order': i
-                        })
-
-                    try:
-                        session.run(query, session_id=session_id, events=events)
-                    except:
-                        pass
+                    
+                    batch_dict = batch.to_dict('records')
+                    for record in batch_dict:
+                        record['start_time'] = str(record['start_time'])
+                        record['end_time'] = str(record['end_time'])
+                    
+                    session.run(query, batch=batch_dict)
+            
+            # Create clickstream products and events
+            print("  Creating clickstream events...")
+            
+            # Get product events
+            product_events = df[df['product_id'].notna()].copy()
+            product_events = product_events.head(10000)  # Limit for demo
+            
+            # Create products from clickstream
+            products = product_events.groupby('product_id').agg({
+                'category_code': 'first',
+                'brand': 'first',
+                'price': 'mean'
+            }).reset_index()
+            
+            with self.driver.session() as session:
+                for i in tqdm(range(0, len(products), self.batch_size), desc="Products"):
+                    batch = products.iloc[i:i+self.batch_size]
+                    
+                    query = """
+                    UNWIND $batch as row
+                    MERGE (p:Product {sku: 'CLICK_' + toString(row.product_id)})
+                    SET p.category = coalesce(row.category_code, 'Unknown'),
+                        p.brand = coalesce(row.brand, 'Unknown'),
+                        p.price = toFloat(coalesce(row.price, 0)),
+                        p.source = 'Clickstream'
+                    """
+                    
+                    session.run(query, batch=batch.fillna('').to_dict('records'))
+            
+            print(f"  ✅ Session and clickstream data loaded successfully")
+            
+        except Exception as e:
+            print(f"  ❌ Error loading sessions: {str(e)}")
 
     def create_product_relationships(self):
-        """Create co-purchase and co-view relationships"""
+        """Create relationships between products"""
         print("\n🔗 Creating Product Relationships...")
-
+        
         with self.driver.session() as session:
-            # Create ALSO_BOUGHT relationships
+            # Create FREQUENTLY_BOUGHT_WITH relationships
             print("  Creating co-purchase relationships...")
-
+            
             query = """
-            MATCH (p1:Product)<-[:PURCHASED]-(c:Customer)-[:PURCHASED]->(p2:Product)
-            WHERE p1 <> p2
-            WITH p1, p2, count(distinct c) as co_purchase_count
-            WHERE co_purchase_count > 5
-            MERGE (p1)-[r:ALSO_BOUGHT {weight: co_purchase_count}]->(p2)
+            MATCH (c:Customer)-[:PURCHASED]->(p1:Product)
+            MATCH (c)-[:PURCHASED]->(p2:Product)
+            WHERE p1.sku < p2.sku
+            WITH p1, p2, count(c) as co_purchase_count
+            WHERE co_purchase_count > 2
+            MERGE (p1)-[r:FREQUENTLY_BOUGHT_WITH {weight: co_purchase_count}]->(p2)
             """
+            
+            result = session.run(query)
+            print(f"  ✅ Created co-purchase relationships")
 
-            session.run(query)
-
-            # Create VIEWED_TOGETHER relationships from sessions
-            print("  Creating co-view relationships...")
-
+    def update_product_scores(self):
+        """Calculate and update product scores"""
+        print("\n📈 Calculating Product Scores...")
+        
+        with self.driver.session() as session:
+            # Calculate popularity scores
             query = """
-            MATCH (s:Session)-[:EVENT {type: 'view'}]->(p1:Product)
-            MATCH (s)-[:EVENT {type: 'view'}]->(p2:Product)
-            WHERE p1 <> p2
-            WITH p1, p2, count(distinct s) as co_view_count
-            WHERE co_view_count > 3
-            MERGE (p1)-[r:VIEWED_TOGETHER {weight: co_view_count}]->(p2)
+            MATCH (p:Product)<-[r:PURCHASED]-()
+            WITH p, count(r) as purchase_count
+            SET p.popularity_score = purchase_count
+            RETURN count(p) as updated_count
             """
+            
+            result = session.run(query).single()
+            if result:
+                print(f"  ✅ Updated popularity scores for {result['updated_count']} products")
 
-            session.run(query)
+    def show_enhanced_statistics(self):
+        """Show statistics about loaded data"""
+        print("\n📊 Database Statistics:")
+        
+        with self.driver.session() as session:
+            # Count nodes by label
+            node_stats = session.run("""
+                MATCH (n)
+                RETURN labels(n)[0] as label, count(n) as count
+                ORDER BY count DESC
+            """).data()
+            
+            print("\n🔵 Nodes:")
+            for stat in node_stats:
+                print(f"   • {stat['label']}: {stat['count']:,}")
+            
+            # Count relationships
+            rel_stats = session.run("""
+                MATCH ()-[r]->()
+                RETURN type(r) as type, count(r) as count
+                ORDER BY count DESC
+            """).data()
+            
+            if rel_stats:
+                print("\n🔗 Relationships:")
+                for stat in rel_stats:
+                    print(f"   • {stat['type']}: {stat['count']:,}")
 
     def _load_product_batch(self, batch):
         """Helper to load product batch"""
@@ -335,145 +452,18 @@ class EnhancedDataLoader:
                 p.price = toFloat(row.price),
                 p.brand = row.brand,
                 p.category = row.category,
-                p.features = row.features,
                 p.main_cat = row.main_cat
             WITH p, row
-            WHERE row.brand IS NOT NULL AND row.brand <> 'Unknown'
+            WHERE row.brand IS NOT NULL AND row.brand <> 'Unknown' AND row.brand <> ''
             MERGE (b:Brand {name: row.brand})
             MERGE (p)-[:MADE_BY]->(b)
             WITH p, row
-            WHERE row.category IS NOT NULL
+            WHERE row.category IS NOT NULL AND row.category <> ''
             MERGE (c:Category {name: row.category})
             MERGE (p)-[:BELONGS_TO]->(c)
             """
-
+            
             session.run(query, batch=batch)
-
-    def _load_review_batch(self, batch):
-        """Helper to load review batch"""
-        with self.driver.session() as session:
-            query = """
-            UNWIND $batch as row
-            MERGE (c:Customer {customer_id: row.customer_id})
-            MERGE (p:Product {sku: row.product_sku})
-            CREATE (r:Review {
-                review_id: row.review_id,
-                rating: toFloat(row.rating),
-                review_text: row.review_text,
-                sentiment: toFloat(row.sentiment),
-                verified: row.verified,
-                review_time: row.review_time
-            })
-            CREATE (c)-[:WROTE]->(r)
-            CREATE (r)-[:ABOUT]->(p)
-            """
-
-            session.run(query, batch=batch)
-
-    def _analyze_sentiment(self, text):
-        """Simple sentiment analysis"""
-        try:
-            blob = TextBlob(text)
-            return blob.sentiment.polarity
-        except:
-            return 0
-
-    def update_product_scores(self):
-        """Calculate and update product scores based on reviews and purchases"""
-        print("\n📈 Calculating Product Scores...")
-
-        with self.driver.session() as session:
-            query = """
-            MATCH (p:Product)
-            OPTIONAL MATCH (p)<-[:ABOUT]-(r:Review)
-            OPTIONAL MATCH (p)<-[pur:PURCHASED]-()
-            WITH p, 
-                 avg(r.rating) as avg_rating,
-                 count(r) as review_count,
-                 avg(r.sentiment) as avg_sentiment,
-                 count(pur) as purchase_count
-            SET p.rating = coalesce(avg_rating, 0),
-                p.review_count = coalesce(review_count, 0),
-                p.sentiment_score = coalesce(avg_sentiment, 0),
-                p.popularity_score = coalesce(purchase_count, 0),
-                p.overall_score = (
-                    coalesce(avg_rating, 0) * 0.3 + 
-                    coalesce(avg_sentiment + 1, 0) * 2.5 * 0.2 + 
-                    log(coalesce(purchase_count, 1) + 1) * 0.5
-                )
-            """
-
-            session.run(query)
-            print("  ✅ Product scores updated")
-
-    def show_enhanced_statistics(self):
-        """Show comprehensive statistics"""
-        print("\n📊 ENHANCED DATABASE STATISTICS")
-        print("=" * 60)
-
-        with self.driver.session() as session:
-            stats = {}
-
-            # Node counts
-            node_types = ['Customer', 'Product', 'Review', 'Session', 'Category', 'Brand']
-            for node_type in node_types:
-                count = session.run(f"MATCH (n:{node_type}) RETURN count(n) as c").single()['c']
-                stats[node_type] = count
-
-            # Relationship counts
-            rel_types = ['PURCHASED', 'WROTE', 'ALSO_BOUGHT', 'VIEWED_TOGETHER', 'EVENT']
-            for rel_type in rel_types:
-                count = session.run(f"MATCH ()-[r:{rel_type}]->() RETURN count(r) as c").single()['c']
-                stats[rel_type] = count
-
-            # Print stats
-            print("\n📦 Nodes:")
-            for node_type in node_types:
-                if stats.get(node_type, 0) > 0:
-                    print(f"   • {node_type}s: {stats[node_type]:,}")
-
-            print("\n🔗 Relationships:")
-            for rel_type in rel_types:
-                if stats.get(rel_type, 0) > 0:
-                    print(f"   • {rel_type}: {stats[rel_type]:,}")
-
-            # Advanced metrics
-            metrics = session.run("""
-                MATCH (c:Customer)
-                OPTIONAL MATCH (c)-[r:PURCHASED]->()
-                WITH c, count(r) as purchases
-                RETURN avg(purchases) as avg_purchases,
-                       percentileDisc(purchases, 0.5) as median_purchases,
-                       max(purchases) as max_purchases
-            """).single()
-
-            print("\n📈 Metrics:")
-            print(f"   • Avg purchases/customer: {metrics['avg_purchases']:.1f}")
-            print(f"   • Median purchases: {metrics['median_purchases']}")
-            print(f"   • Max purchases: {metrics['max_purchases']}")
-
-    def run_full_load(self):
-        """Run complete enhanced data load"""
-        print("=" * 60)
-        print("ENHANCED DATA LOADER")
-        print("=" * 60)
-
-        # Clear and setup
-        self.clear_database()
-        self.create_enhanced_schema()
-
-        # Load all datasets
-        self.load_uci_retail_fixed()  # Use existing method
-        self.load_amazon_products_enhanced()
-        self.load_customer_behavior_enriched()
-        self.load_sessions_and_clickstream()
-
-        # Create relationships and scores
-        self.create_product_relationships()
-        self.update_product_scores()
-
-        # Show results
-        self.show_enhanced_statistics()
 
     def clear_database(self):
         """Clear existing data"""
@@ -481,10 +471,28 @@ class EnhancedDataLoader:
             session.run("MATCH (n) DETACH DELETE n")
             print("✅ Database cleared")
 
-    def load_uci_retail_fixed(self):
-        """Your existing UCI retail loader - keep this"""
-        # Keep your existing implementation
-        pass
+    def run_full_load(self):
+        """Run complete enhanced data load"""
+        print("=" * 60)
+        print("ENHANCED DATA LOADER")
+        print("=" * 60)
+        
+        # Clear and setup
+        self.clear_database()
+        self.create_enhanced_schema()
+        
+        # Load all datasets
+        self.load_uci_retail_fixed()
+        self.load_amazon_products_enhanced()
+        self.load_customer_behavior_enriched()
+        self.load_sessions_and_clickstream()
+        
+        # Create relationships and scores
+        self.create_product_relationships()
+        self.update_product_scores()
+        
+        # Show results
+        self.show_enhanced_statistics()
 
     def close(self):
         self.driver.close()

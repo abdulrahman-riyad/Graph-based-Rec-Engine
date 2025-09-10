@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 import uvicorn
 from datetime import datetime
 
-from config import settings
-from database import db_manager
-from api.v1.endpoints import (
+# Fix: Use relative imports since we're inside the app package
+from .config import settings
+from .database import db_manager
+from .api.v1.endpoints import (
     health,
     recommendations,
     analytics,
@@ -123,7 +124,7 @@ async def api_info():
 
 if __name__ == "__main__":
     uvicorn.run(
-        "app.main:app",
+        "main:app",  # Changed from "app.main:app" since we're running from within the module
         host="0.0.0.0",
         port=8000,
         reload=True
