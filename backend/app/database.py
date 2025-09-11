@@ -1,67 +1,103 @@
-# backend/app/database.py
-"""Database connection management for Neo4j"""
-
+"""
+Database connection manager for Neo4j
+"""
 from neo4j import GraphDatabase
-from .config import settings  # Fixed: Use relative import
-import logging
-
-logger = logging.getLogger(__name__)
+from .config import settings
 
 
 class DatabaseManager:
-    """Manages Neo4j database connections"""
-    
+    """
+    Manages Neo4j database connections and provides session management
+    """
     def __init__(self):
         self.driver = None
-        
+        self.uri = settings.neo4j_uri
+        self.user = settings.neo4j_user
+        self.password = settings.neo4j_password
+
     def connect(self):
-        """Create connection to Neo4j"""
+        """Establish connection to Neo4j database"""
         try:
             self.driver = GraphDatabase.driver(
-                settings.neo4j_uri,
-                auth=(settings.neo4j_user, settings.neo4j_password)
+                self.uri,
+                auth=(self.user, self.password),
+                max_connection_lifetime=30 * 60,  # 30 minutes
+                max_connection_pool_size=50,
+                connection_acquisition_timeout=2 * 60  # 2 minutes
             )
-            # Test connection
-            with self.driver.session() as session:
-                session.run("RETURN 1")
-            logger.info("Successfully connected to Neo4j")
+            # Verify connection
+            self.driver.verify_connectivity()
+            return True
         except Exception as e:
-            logger.error(f"Failed to connect to Neo4j: {e}")
-            raise
-            
+            print(f"❌ Failed to connect to Neo4j: {e}")
+            self.driver = None
+            return False
+
     def close(self):
-        """Close database connection"""
+        """Close the database connection"""
         if self.driver:
             self.driver.close()
-            logger.info("Neo4j connection closed")
-            
+            self.driver = None
+
     def get_session(self):
-        """Get a Neo4j session"""
+        """Get a new database session"""
         if not self.driver:
-            self.connect()
+            if not self.connect():
+                raise Exception("Database connection not established")
         return self.driver.session()
-        
+
     def execute_query(self, query, parameters=None):
         """Execute a query and return results"""
         with self.get_session() as session:
             result = session.run(query, parameters or {})
             return [record.data() for record in result]
-            
-    def execute_write(self, query, parameters=None):
-        """Execute a write transaction"""
+
+    def execute_write_query(self, query, parameters=None):
+        """Execute a write query"""
         with self.get_session() as session:
-            with session.begin_transaction() as tx:
-                tx.run(query, parameters or {})
-                tx.commit()
-                
-    def test_connection(self):
-        """Test database connection"""
+            result = session.run(query, parameters or {})
+            session.commit()
+            return result.consume()
+
+    def check_connection(self):
+        """Check if database connection is alive"""
         try:
             with self.get_session() as session:
-                result = session.run("MATCH (n) RETURN count(n) as count").single()
-                return {"status": "connected", "node_count": result["count"]}
+                result = session.run("RETURN 1 as test")
+                return result.single() is not None
+        except Exception:
+            return False
+
+    def get_database_info(self):
+        """Get information about the database"""
+        try:
+            with self.get_session() as session:
+                # Get node counts
+                node_query = """
+                MATCH (n)
+                RETURN labels(n)[0] as label, count(n) as count
+                ORDER BY count DESC
+                """
+                nodes = session.run(node_query).data()
+
+                # Get relationship counts
+                rel_query = """
+                MATCH ()-[r]->()
+                RETURN type(r) as type, count(r) as count
+                ORDER BY count DESC
+                """
+                relationships = session.run(rel_query).data()
+
+                return {
+                    "nodes": nodes,
+                    "relationships": relationships,
+                    "status": "connected"
+                }
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            return {
+                "status": "disconnected",
+                "error": str(e)
+            }
 
 
 # Create global database manager instance

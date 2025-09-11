@@ -1,4 +1,3 @@
-# backend/run.py
 """
 Main entry point for running the FastAPI application
 """
@@ -7,7 +6,7 @@ import uvicorn
 import sys
 import os
 
-# Add the app directory to Python path
+# Add the current directory to Python path to ensure proper imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.config import settings
@@ -20,8 +19,8 @@ def main():
     # Configure Uvicorn
     config = {
         "app": "app.main:app",
-        "host": "0.0.0.0",
-        "port": 8000,
+        "host": settings.host or "0.0.0.0",
+        "port": settings.port or 8000,
         "reload": settings.debug,
         "log_level": settings.log_level.lower(),
         "access_log": True,
@@ -30,9 +29,9 @@ def main():
     # Add SSL in production
     if settings.environment == "production":
         config.update({
-            "ssl_keyfile": "/path/to/keyfile.key",
-            "ssl_certfile": "/path/to/certfile.crt",
-            "workers": 4
+            "ssl_keyfile": os.getenv("SSL_KEYFILE", "/path/to/keyfile.key"),
+            "ssl_certfile": os.getenv("SSL_CERTFILE", "/path/to/certfile.crt"),
+            "workers": int(os.getenv("UVICORN_WORKERS", 4))
         })
 
     print(f"""
@@ -41,14 +40,15 @@ def main():
     ║     E-COMMERCE INTELLIGENCE PLATFORM                        ║
     ║     Advanced Recommendation Engine & Analytics              ║
     ║                                                              ║
-    ║     Version: {settings.version}                                        ║
-    ║     Environment: {settings.environment.upper()}                           ║
+    ║     Version: {settings.version:16}                   ║
+    ║     Environment: {settings.environment.upper():12}                   ║
     ║                                                              ║
     ╚══════════════════════════════════════════════════════════════╝
 
-    🚀 Starting server at http://localhost:8000
-    📚 Documentation at http://localhost:8000/docs
-    🔧 Alternative docs at http://localhost:8000/redoc
+    🚀 Starting server at http://{config['host']}:{config['port']}
+    📚 Documentation at http://{config['host']}:{config['port']}/docs
+    🔧 Alternative docs at http://{config['host']}:{config['port']}/redoc
+    🔗 Neo4j: {settings.neo4j_uri}
 
     Press CTRL+C to stop the server
     """)

@@ -4,7 +4,7 @@ Complete Pydantic models for request/response schemas
 All classes needed by endpoints are included here
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -353,7 +353,7 @@ class PaginationParams(BaseModel):
     limit: int = Field(50, ge=1, le=100)
     offset: int = Field(0, ge=0)
     sort_by: Optional[str] = None
-    sort_order: str = Field("desc", regex="^(asc|desc)$")
+    sort_order: str = Field(default="desc", pattern="^(asc|desc)$")
 
 
 class ErrorResponse(BaseModel):

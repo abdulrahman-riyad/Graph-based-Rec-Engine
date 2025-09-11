@@ -1,10 +1,9 @@
-# backend/app/services/analytics.py
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 
 from ..database import db_manager
-from ..models.schemas import CustomerSegment, ProductPerformance, BasketAnalysis
+from ..models.schemas import CustomerSegmentResponse, ProductPerformance, BasketAnalysis, RevenueAnalytics
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,7 @@ class AnalyticsService:
     """
 
     @staticmethod
-    def get_customer_segments() -> List[CustomerSegment]:
+    def get_customer_segments() -> List[CustomerSegmentResponse]:
         """
         Perform customer segmentation using RFM analysis
         """
@@ -69,14 +68,15 @@ class AnalyticsService:
 
                 # Create segment objects
                 for record in records:
-                    segment = CustomerSegment(
+                    segment = CustomerSegmentResponse(
                         segment_name=record['segment'],
                         customer_count=record['customer_count'],
                         avg_lifetime_value=round(record['avg_ltv'] or 0, 2),
                         avg_purchase_frequency=round(record['avg_frequency'] or 0, 2),
                         percentage=round(
                             (record['customer_count'] / total_customers * 100) if total_customers > 0 else 0, 2),
-                        characteristics=AnalyticsService._get_segment_characteristics(record['segment'])
+                        total_revenue=round((record['avg_ltv'] or 0) * (record['customer_count'] or 0), 2),
+                        growth_rate=0.0  # This would be calculated in a real implementation
                     )
                     segments.append(segment)
 
@@ -87,64 +87,7 @@ class AnalyticsService:
             return []
 
     @staticmethod
-    def _get_segment_characteristics(segment_name: str) -> Dict[str, any]:
-        """
-        Get characteristics and recommendations for each segment
-        """
-        characteristics = {
-            'Champions': {
-                'description': 'Best customers - recent, frequent, high-value purchases',
-                'strategy': 'Reward loyalty, early access to new products',
-                'risk_level': 'Low',
-                'potential': 'High'
-            },
-            'Loyal Customers': {
-                'description': 'Consistent purchasers with good value',
-                'strategy': 'Upsell higher value products, ask for reviews',
-                'risk_level': 'Low',
-                'potential': 'Medium-High'
-            },
-            'New Customers': {
-                'description': 'Recently acquired customers',
-                'strategy': 'Provide onboarding support, build relationship',
-                'risk_level': 'Medium',
-                'potential': 'High'
-            },
-            'At Risk': {
-                'description': 'Previously good customers showing signs of churn',
-                'strategy': 'Reconnection campaigns, special offers',
-                'risk_level': 'High',
-                'potential': 'Medium'
-            },
-            'Cant Lose Them': {
-                'description': 'High-value customers who haven\'t purchased recently',
-                'strategy': 'Win-back campaigns, personalized offers',
-                'risk_level': 'Very High',
-                'potential': 'High'
-            },
-            'Lost': {
-                'description': 'Haven\'t purchased in a long time',
-                'strategy': 'Reactivation campaigns, surveys',
-                'risk_level': 'Lost',
-                'potential': 'Low'
-            },
-            'Regular': {
-                'description': 'Average purchase behavior',
-                'strategy': 'General marketing, increase frequency',
-                'risk_level': 'Medium',
-                'potential': 'Medium'
-            }
-        }
-
-        return characteristics.get(segment_name, {
-            'description': 'Standard customer segment',
-            'strategy': 'Standard marketing approach',
-            'risk_level': 'Medium',
-            'potential': 'Medium'
-        })
-
-    @staticmethod
-    def get_revenue_analytics(start_date: datetime, end_date: datetime) -> Dict:
+    def get_revenue_analytics(start_date: datetime, end_date: datetime) -> RevenueAnalytics:
         """
         Get revenue analytics for a time period
         """
@@ -209,45 +152,46 @@ class AnalyticsService:
                         elif second_half < first_half * 0.9:
                             trend = 'decreasing'
 
-                return {
-                    'period': {
-                        'start': start_date.isoformat(),
-                        'end': end_date.isoformat()
-                    },
-                    'summary': {
-                        'total_revenue': round(daily_result['total_revenue'] or 0, 2),
-                        'avg_daily_revenue': round(daily_result['avg_daily_revenue'] or 0, 2),
-                        'trend': trend
-                    },
-                    'daily_breakdown': {
-                        'dates': [d.isoformat() if d else None for d in (daily_result['dates'] or [])],
-                        'revenues': daily_result['revenues'] or [],
-                        'customers': daily_result['customers'] or [],
-                        'orders': daily_result['orders'] or []
-                    },
-                    'category_breakdown': category_result['category_breakdown'] if category_result else []
-                }
+                # Format daily breakdown
+                daily_breakdown = []
+                if daily_result and daily_result['dates']:
+                    for i, date in enumerate(daily_result['dates']):
+                        daily_breakdown.append({
+                            'date': date.isoformat() if date else None,
+                            'revenue': daily_result['revenues'][i] if i < len(daily_result['revenues']) else 0,
+                            'customers': daily_result['customers'][i] if i < len(daily_result['customers']) else 0,
+                            'orders': daily_result['orders'][i] if i < len(daily_result['orders']) else 0
+                        })
+
+                # Format category breakdown
+                revenue_by_category = {}
+                if category_result and category_result['category_breakdown']:
+                    for item in category_result['category_breakdown']:
+                        revenue_by_category[item['category']] = item['revenue']
+
+                return RevenueAnalytics(
+                    total_revenue=round(daily_result['total_revenue'] or 0, 2),
+                    order_count=sum(daily_result['orders'] or [0]),
+                    avg_order_value=round(daily_result['avg_daily_revenue'] or 0, 2),
+                    growth_rate=0.0,  # This would be calculated in a real implementation
+                    daily_revenue=daily_breakdown,
+                    revenue_by_category=revenue_by_category,
+                    revenue_by_segment=None,  # This would be calculated in a real implementation
+                    forecast=None  # This would be calculated in a real implementation
+                )
 
         except Exception as e:
             logger.error(f"Error getting revenue analytics: {e}")
-            return {
-                'period': {
-                    'start': start_date.isoformat(),
-                    'end': end_date.isoformat()
-                },
-                'summary': {
-                    'total_revenue': 0,
-                    'avg_daily_revenue': 0,
-                    'trend': 'unknown'
-                },
-                'daily_breakdown': {
-                    'dates': [],
-                    'revenues': [],
-                    'customers': [],
-                    'orders': []
-                },
-                'category_breakdown': []
-            }
+            return RevenueAnalytics(
+                total_revenue=0,
+                order_count=0,
+                avg_order_value=0,
+                growth_rate=0,
+                daily_revenue=[],
+                revenue_by_category={},
+                revenue_by_segment=None,
+                forecast=None
+            )
 
     @staticmethod
     def get_basket_analysis(min_support: float = 0.01, min_confidence: float = 0.1) -> List[BasketAnalysis]:
@@ -298,12 +242,12 @@ class AnalyticsService:
                 rules = []
                 for record in result:
                     rule = BasketAnalysis(
-                        item1=record['item1'] or 'Unknown',
-                        item2=record['item2'] or 'Unknown',
+                        product_a=record['item1'] or 'Unknown',
+                        product_b=record['item2'] or 'Unknown',
                         support=round(record['support'], 4),
                         confidence=round(record['confidence'], 4),
                         lift=round(record['lift'], 2),
-                        transaction_count=record['support_count']
+                        frequency=record['support_count']
                     )
                     rules.append(rule)
 
@@ -341,55 +285,22 @@ class AnalyticsService:
                 if not result or not result['product']:
                     return None
 
-                # Get cross-sell opportunities
-                cross_sell_query = """
-                    MATCH (p:Product {sku: $sku})<-[:PURCHASED]-(c:Customer)-[:PURCHASED]->(other:Product)
-                    WHERE p <> other
-                    WITH other, count(distinct c) as co_purchase_count
-                    ORDER BY co_purchase_count DESC
-                    LIMIT 5
-                    RETURN collect(other) as cross_sell_products
-                """
-
-                cross_sell_result = session.run(cross_sell_query, sku=product_sku).single()
+                product_data = result['product']
 
                 # Determine trend (simplified)
                 trend = 'stable'
-                # In production, you would calculate actual trend from time-series data
-
-                product_data = result['product']
-
-                # Create Product object from data
-                from ..models.schemas import Product
-                product = Product(
-                    sku=product_data['sku'],
-                    title=product_data.get('title'),
-                    price=product_data.get('price'),
-                    category=product_data.get('category'),
-                    brand=product_data.get('brand'),
-                    rating=product_data.get('rating')
-                )
-
-                # Create cross-sell product list
-                cross_sell_products = []
-                if cross_sell_result and cross_sell_result['cross_sell_products']:
-                    for p in cross_sell_result['cross_sell_products'][:5]:
-                        cross_sell_products.append(Product(
-                            sku=p['sku'],
-                            title=p.get('title'),
-                            price=p.get('price'),
-                            category=p.get('category'),
-                            brand=p.get('brand')
-                        ))
 
                 return ProductPerformance(
-                    product=product,
+                    sku=product_data['sku'],
+                    title=product_data.get('title', 'Unknown'),
+                    category=product_data.get('category', 'Unknown'),
                     revenue=round(result['revenue'] or 0, 2),
                     units_sold=result['units_sold'] or 0,
-                    unique_customers=result['unique_customers'] or 0,
-                    trend=trend,
-                    cross_sell_opportunities=cross_sell_products,
-                    competitive_position={'market_share': 0.1}  # Placeholder
+                    conversion_rate=0.0,  # This would be calculated in a real implementation
+                    avg_rating=0.0,  # This would be calculated in a real implementation
+                    return_rate=0.0,  # This would be calculated in a real implementation
+                    profit_margin=0.0,  # This would be calculated in a real implementation
+                    trend=trend
                 )
 
         except Exception as e:

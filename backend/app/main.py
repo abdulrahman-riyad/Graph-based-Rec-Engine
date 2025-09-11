@@ -1,4 +1,3 @@
-# backend/app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -123,9 +122,5 @@ async def api_info():
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",  # Changed from "app.main:app" since we're running from within the module
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+    # This should not be used in production - use run.py instead
+    print("⚠️  Use 'python -m backend.run' to start the server properly")

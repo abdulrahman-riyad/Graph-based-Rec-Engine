@@ -1,4 +1,3 @@
-# backend/app/models/__init__.py
 """
 Pydantic models for request/response schemas
 """
@@ -8,17 +7,23 @@ from .schemas import (
     Product,
     Customer,
     Recommendation,
-    
+
     # Request models
     RecommendationRequest,
     RevenueAnalyticsRequest,
-    
+    PaginationParams,
+
     # Response models
-    CustomerSegment,
+    CustomerSegmentResponse,
+    CustomerSegmentEnum,
     ProductPerformance,
     BasketAnalysis,
+    RevenueAnalytics,
+    DashboardSummary,
     HealthCheck,
-    
+    ErrorResponse,
+    SuccessResponse,
+
     # Enums
     RecommendationAlgorithm,
     AnalyticsTimeframe
@@ -29,17 +34,23 @@ __all__ = [
     "Product",
     "Customer",
     "Recommendation",
-    
+
     # Request models
     "RecommendationRequest",
     "RevenueAnalyticsRequest",
-    
+    "PaginationParams",
+
     # Response models
-    "CustomerSegment",
+    "CustomerSegmentResponse",
+    "CustomerSegmentEnum",
     "ProductPerformance",
     "BasketAnalysis",
+    "RevenueAnalytics",
+    "DashboardSummary",
     "HealthCheck",
-    
+    "ErrorResponse",
+    "SuccessResponse",
+
     # Enums
     "RecommendationAlgorithm",
     "AnalyticsTimeframe"
