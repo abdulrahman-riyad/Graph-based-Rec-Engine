@@ -17,7 +17,7 @@ api.interceptors.response.use(
     console.error('API Error:', error)
     // Return mock data if API fails
     if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-      console.log('API unavailable, returning mock data')
+      console.error('API failed, using mock data. Check if backend is running on port 8000!')
       return Promise.resolve(getMockData(error.config.url))
     }
     return Promise.reject(error)
