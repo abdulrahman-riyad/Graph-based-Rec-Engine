@@ -1,6 +1,3 @@
-// ============================================
-// frontend/lib/api.ts
-// ============================================
 import axios from 'axios'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
@@ -49,6 +46,30 @@ const getMockData = (url: string) => {
       { segment_name: 'Potential', customer_count: 1800, percentage: 18 },
     ]
   }
+  if (url?.includes('revenue')) {
+    // Generate 30 days of revenue data
+    const days = 30
+    const data = []
+    const baseRevenue = 5000
+
+    for (let i = 0; i < days; i++) {
+      const date = new Date()
+      date.setDate(date.getDate() - (days - i))
+      data.push({
+        date: date.toISOString(),
+        revenue: baseRevenue + Math.random() * 3000 + (i * 50),
+        orders: Math.floor(50 + Math.random() * 30 + (i * 2)),
+      })
+    }
+
+    return {
+      total_revenue: 234500,
+      order_count: 4567,
+      avg_order_value: 51.23,
+      growth_rate: 23.5,
+      daily_revenue: data,
+    }
+  }
   return []
 }
 
@@ -62,28 +83,29 @@ export const fetchCustomerSegments = async () => {
 }
 
 export const fetchRevenueAnalytics = async (startDate?: Date, endDate?: Date) => {
-  return api.post('/analytics/revenue', {
-    start_date: startDate?.toISOString(),
-    end_date: endDate?.toISOString()
-  })
+  const params: any = {}
+  if (startDate) params.start_date = startDate.toISOString()
+  if (endDate) params.end_date = endDate.toISOString()
+
+  return api.get('/analytics/revenue', { params })
 }
 
 export const fetchProducts = async (limit = 50, offset = 0, category?: string) => {
-  const params = new URLSearchParams({
-    limit: String(limit),
-    offset: String(offset)
-  })
-  if (category) params.append('category', category)
-  return api.get(`/products?${params}`)
+  const params: any = {
+    limit,
+    offset
+  }
+  if (category) params.category = category
+  return api.get('/products', { params })
 }
 
 export const fetchCustomers = async (limit = 50, offset = 0, segment?: string) => {
-  const params = new URLSearchParams({
-    limit: String(limit),
-    offset: String(offset)
-  })
-  if (segment) params.append('segment', segment)
-  return api.get(`/customers?${params}`)
+  const params: any = {
+    limit,
+    offset
+  }
+  if (segment) params.segment = segment
+  return api.get('/customers', { params })
 }
 
 export const fetchRecommendations = async (

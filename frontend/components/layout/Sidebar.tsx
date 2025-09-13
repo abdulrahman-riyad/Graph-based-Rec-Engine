@@ -1,6 +1,3 @@
-// ============================================
-// frontend/components/layout/Sidebar.tsx
-// ============================================
 'use client'
 
 import { useState } from 'react'
@@ -10,13 +7,10 @@ import {
   LayoutDashboard,
   Users,
   Package,
-  ShoppingCart,
   BarChart3,
   Settings,
   HelpCircle,
   ChevronLeft,
-  Sparkles,
-  TrendingUp,
   Zap
 } from 'lucide-react'
 
@@ -24,9 +18,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: Users, label: 'Customers', href: '/customers' },
   { icon: Package, label: 'Products', href: '/products' },
-  { icon: ShoppingCart, label: 'Orders', href: '/orders' },
   { icon: BarChart3, label: 'Analytics', href: '/analytics' },
-  { icon: Sparkles, label: 'AI Insights', href: '/insights' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ]
 
@@ -34,8 +26,13 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
 
+  // Check if a navigation item is active
+  const isActive = (path: string) => {
+    return pathname === path
+  }
+
   return (
-    <div className={`${collapsed ? 'w-20' : 'w-64'} bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300`}>
+    <div className={`${collapsed ? 'w-20' : 'w-64'} bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 h-full`}>
       <div className="flex flex-col h-full">
         {/* Logo */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -57,14 +54,14 @@ export default function Sidebar() {
         <nav className="flex-1 p-4 space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const active = isActive(item.href)
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-200 ${
-                  isActive
+                  active
                     ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}

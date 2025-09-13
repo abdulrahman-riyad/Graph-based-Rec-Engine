@@ -1,41 +1,62 @@
-// ============================================
-// frontend/components/dashboard/CustomerSegments.tsx
-// ============================================
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { Users, Star, TrendingUp, AlertCircle } from 'lucide-react'
 
-const mockSegments = [
-  { name: 'Champions', value: 2450, percentage: 24.5, color: '#8B5CF6' },
-  { name: 'Loyal', value: 3200, percentage: 32, color: '#06B6D4' },
-  { name: 'Potential', value: 1800, percentage: 18, color: '#10B981' },
-  { name: 'New', value: 1550, percentage: 15.5, color: '#F59E0B' },
-  { name: 'At Risk', value: 1000, percentage: 10, color: '#EF4444' }
-]
+interface CustomerSegmentsProps {
+  data: any[];
+}
 
 const segmentIcons: Record<string, any> = {
   'Champions': Star,
-  'Loyal': TrendingUp,
+  'Loyal Customers': TrendingUp,
   'At Risk': AlertCircle,
-  'New': Users,
-  'Potential': Users
+  'New Customers': Users,
+  'Potential Loyalists': Users
 }
 
-export default function CustomerSegments() {
-  const [activeSegment, setActiveSegment] = useState(mockSegments[0])
+export default function CustomerSegments({ data }: CustomerSegmentsProps) {
+  const [activeSegment, setActiveSegment] = useState(data[0] || {})
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Customer Segments</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">RFM analysis breakdown</p>
+          </div>
+          <Users className="w-5 h-5 text-gray-400" />
+        </div>
+        <div className="h-64 flex items-center justify-center">
+          <p className="text-gray-500">No customer segment data available</p>
+        </div>
+      </div>
+    )
+  }
+
+  const colors = ['#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#6366F1', '#EC4899']
+
+  // Prepare data for the chart
+  const chartData = data.map((segment, index) => ({
+    name: segment.segment_name,
+    value: segment.customer_count,
+    percentage: segment.percentage,
+    color: colors[index % colors.length]
+  }))
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload[0]) {
+      const segment = payload[0].payload
       return (
         <div className="bg-white dark:bg-gray-800 p-3 shadow-lg rounded-lg border border-gray-200 dark:border-gray-700">
-          <p className="font-semibold text-gray-900 dark:text-white">{payload[0].name}</p>
+          <p className="font-semibold text-gray-900 dark:text-white">{segment.name}</p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Customers: {payload[0].value.toLocaleString()}
+            Customers: {segment.value.toLocaleString()}
           </p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Percentage: {payload[0].payload.percentage}%
+            Percentage: {segment.percentage}%
           </p>
         </div>
       )
@@ -59,7 +80,7 @@ export default function CustomerSegments() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={mockSegments}
+                data={chartData}
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
@@ -67,12 +88,12 @@ export default function CustomerSegments() {
                 paddingAngle={5}
                 dataKey="value"
               >
-                {mockSegments.map((entry, index) => (
+                {chartData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={entry.color}
                     className="hover:opacity-80 transition-opacity cursor-pointer"
-                    onClick={() => setActiveSegment(entry)}
+                    onClick={() => setActiveSegment(data[index])}
                   />
                 ))}
               </Pie>
@@ -83,13 +104,13 @@ export default function CustomerSegments() {
 
         {/* Segment Details */}
         <div className="space-y-3">
-          {mockSegments.map((segment) => {
-            const Icon = segmentIcons[segment.name] || Users
+          {data.map((segment, index) => {
+            const Icon = segmentIcons[segment.segment_name] || Users
             return (
               <div
-                key={segment.name}
+                key={segment.segment_name}
                 className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
-                  activeSegment.name === segment.name
+                  activeSegment.segment_name === segment.segment_name
                     ? 'bg-gray-100 dark:bg-gray-700 shadow-sm'
                     : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
                 }`}
@@ -98,15 +119,15 @@ export default function CustomerSegments() {
                 <div className="flex items-center space-x-3">
                   <div
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: segment.color }}
+                    style={{ backgroundColor: colors[index % colors.length] }}
                   />
                   <Icon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   <div>
                     <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                      {segment.name}
+                      {segment.segment_name}
                     </p>
                     <p className="text-xs text-gray-600 dark:text-gray-400">
-                      {segment.value.toLocaleString()} customers
+                      {segment.customer_count.toLocaleString()} customers
                     </p>
                   </div>
                 </div>

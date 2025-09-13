@@ -1,6 +1,3 @@
-// ============================================
-// frontend/app/dashboard/page.tsx
-// ============================================
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -10,7 +7,7 @@ import CustomerSegments from '@/components/dashboard/CustomerSegments'
 import ProductPerformance from '@/components/dashboard/ProductPerformance'
 import RecommendationEngine from '@/components/dashboard/RecommendationEngine'
 import ActivityFeed from '@/components/dashboard/ActivityFeed'
-import { fetchDashboardSummary } from '@/lib/api'
+import { fetchDashboardSummary, fetchCustomerSegments, fetchRevenueAnalytics } from '@/lib/api'
 import {
   TrendingUp,
   Users,
@@ -31,25 +28,56 @@ interface DashboardData {
   revenue_growth_30d: number
   active_customers_30d: number
   new_customers_30d: number
+  database_status: string
 }
 
 export default function Dashboard() {
-  const [data, setData] = useState<DashboardData | null>(null)
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [customerSegments, setCustomerSegments] = useState<any[]>([])
+  const [revenueData, setRevenueData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState('30d')
 
   useEffect(() => {
-    loadDashboard()
-  }, [])
+    loadDashboardData()
+  }, [timeRange])
 
-  const loadDashboard = async () => {
+  const loadDashboardData = async () => {
     try {
-      const response = await fetchDashboardSummary()
-      setData(response)
+      setLoading(true)
+
+      // Calculate dates based on timeRange
+      const endDate = new Date()
+      const startDate = new Date()
+
+      switch (timeRange) {
+        case '7d':
+          startDate.setDate(startDate.getDate() - 7)
+          break
+        case '30d':
+          startDate.setDate(startDate.getDate() - 30)
+          break
+        case '90d':
+          startDate.setDate(startDate.getDate() - 90)
+          break
+        case '1y':
+          startDate.setFullYear(startDate.getFullYear() - 1)
+          break
+      }
+
+      const [summary, segments, revenue] = await Promise.all([
+        fetchDashboardSummary(),
+        fetchCustomerSegments(),
+        fetchRevenueAnalytics(startDate, endDate)
+      ])
+
+      setDashboardData(summary)
+      setCustomerSegments(segments)
+      setRevenueData(revenue)
     } catch (error) {
       console.error('Failed to load dashboard:', error)
       // Use mock data if API fails
-      setData({
+      setDashboardData({
         total_customers: 12543,
         total_products: 3421,
         total_purchases: 45632,
@@ -57,7 +85,8 @@ export default function Dashboard() {
         revenue_30d: 245678,
         revenue_growth_30d: 23.5,
         active_customers_30d: 3456,
-        new_customers_30d: 234
+        new_customers_30d: 234,
+        database_status: 'operational'
       })
     } finally {
       setLoading(false)
@@ -67,15 +96,15 @@ export default function Dashboard() {
   const stats = [
     {
       title: 'Total Revenue',
-      value: `$${((data?.total_revenue || 0) / 1000).toFixed(1)}K`,
-      change: `+${data?.revenue_growth_30d || 23.5}%`,
+      value: `$${((dashboardData?.total_revenue || 0) / 1000).toFixed(1)}K`,
+      change: `+${dashboardData?.revenue_growth_30d || 23.5}%`,
       icon: DollarSign,
       color: 'from-purple-500 to-pink-500',
       trend: 'up'
     },
     {
       title: 'Active Customers',
-      value: (data?.active_customers_30d || 0).toLocaleString(),
+      value: (dashboardData?.active_customers_30d || 0).toLocaleString(),
       change: '+12.3%',
       icon: Users,
       color: 'from-blue-500 to-cyan-500',
@@ -83,7 +112,7 @@ export default function Dashboard() {
     },
     {
       title: 'Total Orders',
-      value: (data?.total_purchases || 0).toLocaleString(),
+      value: (dashboardData?.total_purchases || 0).toLocaleString(),
       change: '+18.2%',
       icon: ShoppingBag,
       color: 'from-green-500 to-emerald-500',
@@ -91,7 +120,7 @@ export default function Dashboard() {
     },
     {
       title: 'Products',
-      value: (data?.total_products || 0).toLocaleString(),
+      value: (dashboardData?.total_products || 0).toLocaleString(),
       change: '+5.4%',
       icon: Package,
       color: 'from-orange-500 to-red-500',
@@ -133,8 +162,11 @@ export default function Dashboard() {
             <option value="90d">Last 90 days</option>
             <option value="1y">Last year</option>
           </select>
-          <button className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-300">
-            Export Report
+          <button
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-300"
+            onClick={loadDashboardData}
+          >
+            Refresh Data
           </button>
         </div>
       </div>
@@ -148,8 +180,8 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RevenueChart />
-        <CustomerSegments />
+        <RevenueChart data={revenueData} />
+        <CustomerSegments data={customerSegments} />
       </div>
 
       {/* Performance and Recommendations */}
