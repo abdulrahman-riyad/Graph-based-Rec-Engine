@@ -94,15 +94,15 @@ async def get_dashboard_summary():
                 WITH count(c) as total_customers
                 MATCH (p:Product)
                 WITH total_customers, count(p) as total_products
-                OPTIONAL MATCH ()-[r:PURCHASED]->()
+                OPTIONAL MATCH ()-[r:PURCHASED]->(p:Product)
                 WITH total_customers, total_products, count(r) as total_purchases
 
                 // Get 30-day metrics
-                OPTIONAL MATCH (c:Customer)-[r2:PURCHASED]->(p:Product)
-                WHERE r2.purchase_date > datetime() - duration('P30D')
+                OPTIONAL MATCH (c:Customer)-[r2:PURCHASED]->(p2:Product)
+                WHERE COALESCE(r2.purchase_date, r2.date) > datetime() - duration('P30D')
                 WITH total_customers, total_products, total_purchases,
                      count(distinct c) as active_customers,
-                     sum(COALESCE(r2.quantity, 1) * COALESCE(r2.price, p.price, 0)) as revenue_30d
+                     sum(COALESCE(r2.quantity, 1) * COALESCE(r2.price, r2.unit_price, p2.price, 0)) as revenue_30d
 
                 RETURN total_customers, 
                        total_products, 
@@ -114,7 +114,7 @@ async def get_dashboard_summary():
             # Get trend data
             trend = session.run("""
                 MATCH (c:Customer)-[r:PURCHASED]->(p:Product)
-                WHERE r.purchase_date > datetime() - duration('P7D')
+                WHERE COALESCE(r.purchase_date, r.date) > datetime() - duration('P7D')
                 RETURN count(r) as recent_orders
             """).single()
 

@@ -96,10 +96,10 @@ class AnalyticsService:
                 # Daily revenue breakdown
                 daily_query = """
                     MATCH (c:Customer)-[r:PURCHASED]->(p:Product)
-                    WHERE r.purchase_date >= $start_date 
-                      AND r.purchase_date <= $end_date
+                    WHERE COALESCE(r.purchase_date, r.date) >= $start_date 
+                      AND COALESCE(r.purchase_date, r.date) <= $end_date
                     WITH date(r.purchase_date) as purchase_date,
-                         sum(COALESCE(r.quantity, 1) * COALESCE(r.price, p.price, 0)) as daily_revenue,
+                         sum(COALESCE(r.quantity, 1) * COALESCE(r.price, r.unit_price, p.price, 0)) as daily_revenue,
                          count(distinct c) as daily_customers,
                          count(r) as daily_orders
                     ORDER BY purchase_date
@@ -120,11 +120,11 @@ class AnalyticsService:
                 # Category breakdown
                 category_query = """
                     MATCH (c:Customer)-[r:PURCHASED]->(p:Product)
-                    WHERE r.purchase_date >= $start_date 
-                      AND r.purchase_date <= $end_date
+                    WHERE COALESCE(r.purchase_date, r.date) >= $start_date 
+                      AND COALESCE(r.purchase_date, r.date) <= $end_date
                       AND p.category IS NOT NULL
                     WITH p.category as category,
-                         sum(COALESCE(r.quantity, 1) * COALESCE(r.price, p.price, 0)) as category_revenue,
+                         sum(COALESCE(r.quantity, 1) * COALESCE(r.price, r.unit_price, p.price, 0)) as category_revenue,
                          count(distinct c) as category_customers
                     ORDER BY category_revenue DESC
                     RETURN collect({

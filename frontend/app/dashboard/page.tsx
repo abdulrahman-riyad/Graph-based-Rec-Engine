@@ -48,8 +48,7 @@ export default function Dashboard() {
 
       // Calculate dates based on timeRange
       const endDate = new Date()
-      const startDate = new Date()
-
+      let startDate = new Date()
       switch (timeRange) {
         case '7d':
           startDate.setDate(startDate.getDate() - 7)
@@ -62,6 +61,9 @@ export default function Dashboard() {
           break
         case '1y':
           startDate.setFullYear(startDate.getFullYear() - 1)
+          break
+        case 'all':
+          startDate = new Date('1970-01-01T00:00:00Z')
           break
       }
 
@@ -161,6 +163,7 @@ export default function Dashboard() {
             <option value="30d">Last 30 days</option>
             <option value="90d">Last 90 days</option>
             <option value="1y">Last year</option>
+            <option value="all">All time</option>
           </select>
           <button
             className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-300"

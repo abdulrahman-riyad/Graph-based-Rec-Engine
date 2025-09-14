@@ -144,7 +144,7 @@ async def get_product_reviews(
                        r.review_text as text,
                        r.sentiment as sentiment,
                        r.verified as verified,
-                       r.review_time as review_date,
+                       COALESCE(r.review_time, r.date) as review_date,
                        c.customer_id as customer_id
                 ORDER BY r.review_time DESC
                 SKIP $offset

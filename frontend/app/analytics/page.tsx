@@ -48,6 +48,7 @@ export default function AnalyticsPage() {
           <option value="30d">Last 30 days</option>
           <option value="90d">Last 90 days</option>
           <option value="1y">Last year</option>
+          <option value="all">All time</option>
         </select>
       </div>
 

@@ -34,9 +34,9 @@ class CustomerService:
                     OPTIONAL MATCH (c)-[r:PURCHASED]->(p:Product)
                     WITH c,
                          count(r) as purchase_count,
-                         sum(COALESCE(r.quantity, 1) * COALESCE(r.price, p.price, 0)) as lifetime_value,
-                         avg(COALESCE(r.quantity, 1) * COALESCE(r.price, p.price, 0)) as avg_order_value,
-                         max(r.purchase_date) as last_purchase
+                         sum(COALESCE(r.quantity, 1) * COALESCE(r.price, r.unit_price, p.price, 0)) as lifetime_value,
+                         avg(COALESCE(r.quantity, 1) * COALESCE(r.price, r.unit_price, p.price, 0)) as avg_order_value,
+                         max(COALESCE(r.purchase_date, r.date)) as last_purchase
                     WHERE 1=1
                 """
 
@@ -118,10 +118,10 @@ class CustomerService:
                     OPTIONAL MATCH (c)-[r:PURCHASED]->(p:Product)
                     WITH c,
                          count(r) as purchase_count,
-                         sum(COALESCE(r.quantity, 1) * COALESCE(r.price, p.price, 0)) as lifetime_value,
-                         avg(COALESCE(r.quantity, 1) * COALESCE(r.price, p.price, 0)) as avg_order_value,
-                         max(r.purchase_date) as last_purchase,
-                         min(r.purchase_date) as first_purchase
+                         sum(COALESCE(r.quantity, 1) * COALESCE(r.price, r.unit_price, p.price, 0)) as lifetime_value,
+                         avg(COALESCE(r.quantity, 1) * COALESCE(r.price, r.unit_price, p.price, 0)) as avg_order_value,
+                         max(COALESCE(r.purchase_date, r.date)) as last_purchase,
+                         min(COALESCE(r.purchase_date, r.date)) as first_purchase
                     RETURN c.customer_id as customer_id,
                            c.email as email,
                            c.name as name,

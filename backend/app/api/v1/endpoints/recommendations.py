@@ -111,7 +111,7 @@ async def get_trending_products(
         with db_manager.get_session() as session:
             result = session.run("""
                 MATCH (c:Customer)-[r:PURCHASED]->(p:Product)
-                WHERE r.purchase_date > datetime() - duration({days: $days})
+                WHERE COALESCE(r.purchase_date, r.date) > datetime() - duration({days: $days})
                 WITH p,
                      count(distinct c) as recent_buyers,
                      sum(COALESCE(r.quantity, 1)) as recent_sales

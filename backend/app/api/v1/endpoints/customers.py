@@ -91,10 +91,10 @@ async def get_customer_purchase_history(
                        p.title as product_title,
                        p.price as product_price,
                        p.category as category,
-                       r.purchase_date as purchase_date,
+                       COALESCE(r.purchase_date, r.date) as purchase_date,
                        COALESCE(r.quantity, 1) as quantity,
-                       COALESCE(r.price, p.price) as purchase_price,
-                       COALESCE(r.quantity, 1) * COALESCE(r.price, p.price, 0) as total_amount
+                       COALESCE(r.price, r.unit_price, p.price) as purchase_price,
+                       COALESCE(r.quantity, 1) * COALESCE(r.price, r.unit_price, p.price, 0) as total_amount
                 ORDER BY r.purchase_date DESC
                 SKIP $offset
                 LIMIT $limit

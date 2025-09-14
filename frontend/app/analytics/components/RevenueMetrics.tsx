@@ -23,10 +23,16 @@ export default function RevenueMetrics({ timeRange }: RevenueMetricsProps) {
 
   const loadRevenue = async () => {
     try {
-      const days = parseInt(timeRange) || 30
       const endDate = new Date()
-      const startDate = new Date()
-      startDate.setDate(startDate.getDate() - days)
+      let startDate = new Date()
+      if (timeRange === 'all') {
+        startDate = new Date('1970-01-01T00:00:00Z')
+      } else if (timeRange === '1y') {
+        startDate.setFullYear(startDate.getFullYear() - 1)
+      } else {
+        const days = parseInt(timeRange) || 30
+        startDate.setDate(startDate.getDate() - days)
+      }
 
       const response = await fetchRevenueAnalytics(startDate, endDate)
 
