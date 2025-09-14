@@ -4,7 +4,7 @@
 'use client'
 
 import { Card } from '@/components/ui/card'
-import { Filter, Package } from 'lucide-react'
+import { Filter, Package, Star } from 'lucide-react'
 
 interface ProductFiltersProps {
   category: string

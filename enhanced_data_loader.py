@@ -853,20 +853,18 @@ class EnhancedDataLoader:
 
             print(f"  Loading {len(sessions)} sessions...")
 
-            # Load sessions
+            # Load sessions (use MERGE to avoid duplicate key violations)
             with self.driver.session() as session:
                 for i in tqdm(range(0, len(sessions), self.batch_size)):
                     batch = sessions.iloc[i:i + self.batch_size]
 
                     query = """
                     UNWIND $batch as row
-                    CREATE (s:Session {
-                        session_id: row.session_id,
-                        customer_id: 'CLICK_' + toString(row.user_id),
-                        start_time: datetime(row.start_time),
-                        end_time: datetime(row.end_time),
-                        event_count: toInteger(row.event_count)
-                    })
+                    MERGE (s:Session {session_id: row.session_id})
+                    SET s.customer_id = 'CLICK_' + toString(row.user_id),
+                        s.start_time = datetime(row.start_time),
+                        s.end_time = datetime(row.end_time),
+                        s.event_count = toInteger(row.event_count)
                     """
 
                     session.run(query, batch=batch.to_dict('records'))
@@ -908,28 +906,40 @@ class EnhancedDataLoader:
             traceback.print_exc()
 
     def create_product_relationships(self):
-        """Create relationships between products"""
+        """Create relationships between products in batches to limit memory usage"""
         print("\n🔗 Creating Product Relationships...")
 
         with self.driver.session() as session:
-            # Create FREQUENTLY_BOUGHT_WITH relationships
-            print("  Creating co-purchase relationships...")
+            print("  Creating co-purchase relationships (batched)...")
 
-            query = """
-            MATCH (c:Customer)-[:PURCHASED]->(p1:Product)
-            MATCH (c)-[:PURCHASED]->(p2:Product)
-            WHERE p1.sku < p2.sku
-            WITH p1, p2, count(c) as co_purchase_count
-            WHERE co_purchase_count > 2
-            MERGE (p1)-[r:FREQUENTLY_BOUGHT_WITH {weight: co_purchase_count}]->(p2)
-            RETURN count(r) as relationships_created
-            """
+            # Incrementally build relationship weights per customer to avoid large aggregations
+            session.run(
+                """
+                CALL apoc.periodic.iterate(
+                  "MATCH (c:Customer) RETURN c",
+                  "MATCH (c)-[:PURCHASED]->(p1:Product)
+                   MATCH (c)-[:PURCHASED]->(p2:Product)
+                   WHERE id(p1) < id(p2)
+                   MERGE (p1)-[r:FREQUENTLY_BOUGHT_WITH]->(p2)
+                   ON CREATE SET r.weight = 1
+                   ON MATCH SET r.weight = coalesce(r.weight, 0) + 1",
+                  {batchSize: 500, parallel: false}
+                )
+                """
+            )
 
-            result = session.run(query).single()
-            if result:
-                print(f"  ✅ Created {result['relationships_created']} co-purchase relationships")
-            else:
-                print("  ⚠ No co-purchase relationships created")
+            # Optionally prune weak edges to keep the graph lean
+            pruned = session.run(
+                """
+                MATCH (p1:Product)-[r:FREQUENTLY_BOUGHT_WITH]->(p2:Product)
+                WITH r WHERE coalesce(r.weight,0) <= 2
+                DELETE r
+                RETURN count(*) as pruned
+                """
+            ).single()
+
+            count_pruned = pruned["pruned"] if pruned else 0
+            print(f"  ✅ Finished building relationships (pruned {count_pruned} weak edges)")
 
     def update_product_scores(self):
         """Calculate and update product scores"""

@@ -56,8 +56,8 @@ export default function AnalyticsPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Revenue</p>
-              <p className="text-2xl font-bold">${data?.total_revenue?.toLocaleString() || '0'}</p>
+              <p className="text-sm text-gray-600">Revenue (30d)</p>
+              <p className="text-2xl font-bold">${data?.revenue_30d?.toLocaleString() || '0'}</p>
             </div>
             <TrendingUp className="w-8 h-8 text-green-600" />
           </div>

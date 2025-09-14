@@ -70,14 +70,14 @@ class RecommendationService:
             for sku, data in sorted_products:
                 rec = Recommendation(
                     sku=sku,
-                    title=data.get('title'),
+                    title=data.get('title') or sku,
                     price=data.get('price'),
                     category=data.get('category'),
                     brand=data.get('brand'),
                     rating=data.get('rating'),
                     score=min(data.get('score', 0), 1.0),
                     confidence=min(data.get('score', 0) * 2, 1.0),
-                    algorithm_used='hybrid'
+                    algorithm='hybrid'
                 )
                 recommendations.append(rec)
 

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from datetime import datetime
 from ....models.schemas import HealthCheck
 from ....database import db_manager
+from ....config import settings
 
 router = APIRouter()
 
@@ -30,6 +31,7 @@ async def health_check():
                 status="healthy",
                 database=db_status,
                 timestamp=datetime.now(),
+                version=settings.version,
                 node_count=stats['node_count'] if stats else 0,
                 relationship_count=stats['relationship_count'] if stats else 0
             )
@@ -38,6 +40,7 @@ async def health_check():
             status="unhealthy",
             database=f"error: {str(e)}",
             timestamp=datetime.now(),
+            version=settings.version,
             node_count=0,
             relationship_count=0
         )

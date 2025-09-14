@@ -30,10 +30,10 @@ export default function RevenueMetrics({ timeRange }: RevenueMetricsProps) {
 
       const response = await fetchRevenueAnalytics(startDate, endDate)
 
-      if (response?.daily_breakdown) {
-        const chartData = response.daily_breakdown.dates.map((date: string, i: number) => ({
-          date: new Date(date).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
-          revenue: response.daily_breakdown.revenues[i] || 0
+      if (response?.daily_revenue && Array.isArray(response.daily_revenue)) {
+        const chartData = response.daily_revenue.map((item: any) => ({
+          date: new Date(item.date).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+          revenue: item.revenue || 0
         }))
         setData(chartData)
       }

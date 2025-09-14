@@ -264,7 +264,7 @@ class AdvancedRecommendationEngine:
             result = session.run("""
                 // Find sequences that led to purchases
                 MATCH (c:Customer {customer_id: $customer_id})-[:PURCHASED]->(last:Product)
-                MATCH (other:Customer)-[:PURCHASED]->(last)
+                MATCH (other:Customer)-[r1:PURCHASED]->(last)
                 WHERE other <> c
                 
                 // Find what other customers bought next

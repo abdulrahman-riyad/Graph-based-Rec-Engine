@@ -95,8 +95,8 @@ export default function Dashboard() {
 
   const stats = [
     {
-      title: 'Total Revenue',
-      value: `$${((dashboardData?.total_revenue || 0) / 1000).toFixed(1)}K`,
+      title: 'Revenue (30d)',
+      value: `$${((dashboardData?.revenue_30d || 0) / 1000).toFixed(1)}K`,
       change: `+${dashboardData?.revenue_growth_30d || 23.5}%`,
       icon: DollarSign,
       color: 'from-purple-500 to-pink-500',

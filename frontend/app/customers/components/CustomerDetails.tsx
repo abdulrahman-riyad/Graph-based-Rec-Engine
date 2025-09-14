@@ -36,7 +36,7 @@ export default function CustomerDetails({ customer }: CustomerDetailsProps) {
           <DollarSign className="w-5 h-5 text-gray-400" />
           <div>
             <p className="text-sm text-gray-600">Total Spent</p>
-            <p className="font-medium">${customer.total_spent?.toFixed(2) || '0.00'}</p>
+            <p className="font-medium">${(customer.lifetime_value || 0).toFixed(2)}</p>
           </div>
         </div>
 

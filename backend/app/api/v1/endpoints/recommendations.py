@@ -81,13 +81,13 @@ async def get_popular_products(
             for i, record in enumerate(result):
                 rec = Recommendation(
                     sku=record['sku'],
-                    title=record.get('title'),
+                    title=record.get('title') or record['sku'],
                     price=record.get('price'),
                     category=record.get('category'),
-                    brand=record.get('brand'),
                     rating=record.get('rating'),
-                    score=1.0 - (i / limit),
-                    confidence=0.95
+                    score=max(0.0, min(1.0, 1.0 - (i / max(1, limit)))),
+                    confidence=0.95,
+                    algorithm="popular"
                 )
                 recommendations.append(rec)
 
@@ -133,13 +133,13 @@ async def get_trending_products(
             for i, record in enumerate(result):
                 rec = Recommendation(
                     sku=record['sku'],
-                    title=record.get('title'),
+                    title=record.get('title') or record['sku'],
                     price=record.get('price'),
                     category=record.get('category'),
-                    brand=record.get('brand'),
                     rating=record.get('rating'),
-                    score=float(record['trend_score']),
-                    confidence=min(record['recent_buyers'] / 10, 1.0)
+                    score=min(1.0, float(record['trend_score']) if record.get('trend_score') is not None else 0.0),
+                    confidence=min((record.get('recent_buyers') or 0) / 10, 1.0),
+                    algorithm="trending"
                 )
                 recommendations.append(rec)
 

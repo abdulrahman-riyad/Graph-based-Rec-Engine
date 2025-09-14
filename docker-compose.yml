@@ -29,11 +29,12 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=password123
-      - PYTHONPATH=/app/app
-    depends_on:
-      - neo4j
+      - PYTHONPATH=/app/app:/workspace
     volumes:
       - ./backend:/app
+      - ./:/workspace
+    depends_on:
+      - neo4j
     networks:
       - ecommerce-network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

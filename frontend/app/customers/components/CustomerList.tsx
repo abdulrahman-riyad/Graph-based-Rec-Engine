@@ -68,7 +68,7 @@ export default function CustomerList({ searchTerm, segment, onSelectCustomer }: 
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-semibold">${customer.total_spent?.toFixed(2) || '0.00'}</p>
+                <p className="font-semibold">${(customer.lifetime_value || 0).toFixed(2)}</p>
                 <p className="text-sm text-gray-600">{customer.purchase_count || 0} orders</p>
               </div>
             </div>

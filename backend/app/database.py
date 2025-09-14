@@ -55,8 +55,9 @@ class DatabaseManager:
     def execute_write_query(self, query, parameters=None):
         """Execute a write query"""
         with self.get_session() as session:
+            # In neo4j-driver v5, auto-commit is used for session.run
+            # Alternatively, use explicit write transactions
             result = session.run(query, parameters or {})
-            session.commit()
             return result.consume()
 
     def check_connection(self):

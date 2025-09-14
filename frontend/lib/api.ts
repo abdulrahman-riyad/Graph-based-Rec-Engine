@@ -10,15 +10,19 @@ const api = axios.create({
   timeout: 10000, // 10 seconds timeout
 })
 
-// Add request interceptor for error handling
+// Add response interceptor for error handling (dev-friendly)
 api.interceptors.response.use(
   response => response.data,
   error => {
     console.error('API Error:', error)
-    // Return mock data if API fails
-    if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-      console.error('API failed, using mock data. Check if backend is running on port 8000!')
-      return Promise.resolve(getMockData(error.config.url))
+    // Return mock data if API is unreachable or returns non-2xx
+    if (
+      error.code === 'ECONNREFUSED' ||
+      error.code === 'ERR_NETWORK' ||
+      (error.response && error.response.status >= 400 && error.response.status < 600)
+    ) {
+      console.warn('API unavailable or returned error, using mock data where possible')
+      return Promise.resolve(getMockData(error.config?.url))
     }
     return Promise.reject(error)
   }
@@ -83,11 +87,10 @@ export const fetchCustomerSegments = async () => {
 }
 
 export const fetchRevenueAnalytics = async (startDate?: Date, endDate?: Date) => {
-  const params: any = {}
-  if (startDate) params.start_date = startDate.toISOString()
-  if (endDate) params.end_date = endDate.toISOString()
-
-  return api.get('/analytics/revenue', { params })
+  const body: any = {}
+  if (startDate) body.start_date = startDate.toISOString()
+  if (endDate) body.end_date = endDate.toISOString()
+  return api.post('/analytics/revenue', body)
 }
 
 export const fetchProducts = async (limit = 50, offset = 0, category?: string) => {
